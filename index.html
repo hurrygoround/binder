@@ -1,0 +1,2573 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    // 最優先エラー捕捉（万一エラーが出たら即座に画面に通知）
+    window.onerror = function(msg, url, line, col, err) {
+      alert("⚠️ バインダー実行時エラー検知:\n" + msg + "\n行番号: " + line + " 行目" + (err && err.message ? "\n詳細: " + err.message : ""));
+    };
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>デジタルカードバインダー v24</title>
+  <style>
+    :root {
+      --base-rgb: 18, 18, 20;
+      --slot-alpha: 0.35;
+      --accent-color: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --pointer-x: 50%;
+      --pointer-y: 50%;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    html, body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: #121214; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; }
+    #app { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; transition: all 0.3s ease; }
+
+
+    /* UI装飾スタイルテーマ */
+    #app.ui-neon { --accent-color: #6366f1; --accent-glow: rgba(99, 102, 241, 0.7); }
+    #app.ui-neon header { border-bottom: 2px solid #6366f1; box-shadow: 0 0 16px rgba(99, 102, 241, 0.5); }
+    #app.ui-gold { --accent-color: #d97706; --accent-glow: rgba(245, 158, 11, 0.6); }
+    #app.ui-gold header { border-bottom: 2px solid #fbbf24; box-shadow: 0 0 16px rgba(245, 158, 11, 0.4); }
+    #app.ui-tactical { --accent-color: #ea580c; --accent-glow: rgba(234, 88, 12, 0.5); }
+    #app.ui-tactical header { border-bottom: 2px solid #f97316; }
+
+
+    /* ヘッダーUI */
+    header { min-height: 68px; height: auto; padding: 5px 10px; background: #1c1d22; border-bottom: 1px solid #2d2e36; display: flex; flex-direction: column; justify-content: flex-start; gap: 5px; z-index: 10; box-sizing: border-box; }
+    .header-row-1, .header-row-2 { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 6px; }
+    #seriesSelect { flex: 1 1 auto; min-width: 0 !important; height: 32px; background: #242531; color: #f8fafc; border: 1px solid #4f46e5; border-radius: 6px; font-size: 13.5px; font-weight: 600; padding: 0 8px; outline: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-icons { display: flex; gap: 5px; flex-shrink: 0; align-items: center; }
+    .icon-btn { width: 32px; height: 28px; background: #2b2c34; color: #f0f0f0; border: 1px solid #3e404d; border-radius: 5px; font-size: 15px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; flex-shrink: 0; }
+    .icon-btn:active { background: #3b3c48; }
+    #searchContainer { display: none; width: 100%; align-items: center; gap: 6px; margin: 2px 0; }
+    #searchContainer.open { display: flex; }
+    .search-input-wrap { position: relative; flex: 1; display: flex; align-items: center; }
+    #searchInput { width: 100%; height: 28px; background: #242531; color: #f0f0f0; border: 1px solid #6366f1; border-radius: 6px; font-size: 12px; padding: 0 28px 0 8px; outline: none; box-sizing: border-box; }
+    #clearSearchBtn { position: absolute; right: 4px; width: 20px; height: 20px; background: #3b3c48; border: none; border-radius: 50%; color: #cbd5e1; font-size: 11px; cursor: pointer; display: none; align-items: center; justify-content: center; line-height: 1; padding: 0; }
+    #closeSearchBtn { height: 28px; padding: 0 8px; font-size: 11px; background: #2b2c34; border: 1px solid #3e404d; color: #cbd5e1; border-radius: 6px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    #closeSearchBtn:active { background: #3b3c48; }
+    #statsText { font-size: 12.5px; color: #a5b4fc; font-weight: 700; white-space: nowrap; }
+    #viewModeSelect { height: 32px; background: #2b2c34; color: #e0e7ff; border: 1px solid var(--accent-color); border-radius: 6px; font-size: 12px; font-weight: bold; padding: 0 8px; outline: none; cursor: pointer; flex-shrink: 0; }
+
+
+    /* バインダーエリア */
+    #binderArea { flex: 1; position: relative; display: flex; overflow: hidden; padding: 6px 8px 24px 8px; justify-content: center; align-items: center; background-size: cover !important; background-position: center !important; }
+    .theme-leather { background: radial-gradient(circle at 50% 30%, #20222a 0%, #0e0f14 100%); }
+    .theme-refill { background: repeating-linear-gradient(0deg, #14161f, #14161f 24px, #1c1f2b 24px, #1c1f2b 25px), repeating-linear-gradient(90deg, #14161f, #14161f 24px, #1c1f2b 24px, #1c1f2b 25px); }
+    .theme-playmat { background: radial-gradient(ellipse at bottom, #1e1b4b 0%, #090d16 100%); }
+    .theme-wood { background: linear-gradient(135deg, #2b1810 0%, #150c08 100%); }
+    .ring-column { width: 12px; height: 80%; display: flex; flex-direction: column; justify-content: space-around; align-items: center; z-index: 5; }
+    .ring-hole { width: 7px; height: 14px; background: rgba(0,0,0,0.65); border-radius: 3px; border: 1px solid rgba(255,255,255,0.18); }
+    #cardGrid { flex: 1; height: 100%; max-width: 520px; display: grid; gap: 6px; padding: 2px; }
+    #cardGrid.grid-2x2 { grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: repeat(2, 1fr) !important; gap: 8px !important; }
+    #cardGrid.grid-2x3 { grid-template-columns: repeat(2, 1fr) !important; grid-template-rows: repeat(3, 1fr) !important; gap: 5px !important; }
+    #cardGrid.grid-3x3 { grid-template-columns: repeat(3, 1fr) !important; grid-template-rows: repeat(3, 1fr) !important; gap: 4px !important; }
+    .card-slot { position: relative; width: 100%; height: 100%; background: rgba(var(--base-rgb), var(--slot-alpha)) !important; backdrop-filter: blur(1.5px); border-radius: 7px; border: 1px dashed rgba(255, 255, 255, 0.22); overflow: hidden; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 3px 8px rgba(0,0,0,0.35); transition: transform 0.15s ease; }
+    .card-slot:active { transform: scale(0.97); }
+    .card-slot img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+    .card-slot.unowned img { filter: grayscale(85%) opacity(45%); }
+    .card-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 22px; background: rgba(10, 10, 14, 0.9); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: space-between; padding: 0 6px; font-size: 11px; color: #cbd5e1; pointer-events: none; z-index: 5; }
+    #cardGrid.grid-3x3 .card-overlay, #cardGrid.grid-2x3 .card-overlay { height: 17px; font-size: 9.5px; padding: 0 3px; }
+    .card-num { font-weight: bold; color: #a5b4fc; }
+    .card-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72%; font-weight: 500; }
+
+
+    #scrollGalleryContainer { display: none; flex: 1; overflow-y: auto; padding: 10px 10px 36px 10px; -webkit-overflow-scrolling: touch; background-size: cover !important; background-position: center !important; }
+    #scrollGalleryContainer.active { display: block; }
+    #scrollGalleryGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 520px; margin: 0 auto; }
+    #scrollGalleryGrid .card-slot { aspect-ratio: 59 / 86; height: auto; }
+    #listViewContainer { display: none; flex: 1; overflow-y: auto; padding: 8px 12px 24px 12px; -webkit-overflow-scrolling: touch; }
+    #listViewContainer.active { display: block; }
+    .list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .list-table th, .list-table td { padding: 8px 6px; border-bottom: 1px solid #272832; text-align: left; }
+    .list-table th { color: #94a3b8; font-weight: 600; }
+    .list-table tbody tr { cursor: pointer; }
+    .list-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+
+    #pageBadge { position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); background: rgba(20, 21, 28, 0.94); border: 1px solid #474a59; border-radius: 12px; padding: 2px 12px; font-size: 12px; font-weight: bold; color: #cbd5e1; z-index: 10; }
+    .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 76px; background: rgba(0, 0, 0, 0.22) !important; backdrop-filter: blur(2px); border: none !important; border-radius: 8px; color: rgba(255, 255, 255, 0.8); font-size: 30px; font-weight: 300; display: flex; align-items: center; justify-content: center; z-index: 20; cursor: pointer; }
+    .nav-btn:active { background: rgba(79, 70, 229, 0.55) !important; color: #ffffff; }
+    #prevBtn { left: 4px; } #nextBtn { right: 4px; }
+
+
+    /* 拡大プレビューモーダル */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.92); z-index: 100; justify-content: center; align-items: center; padding: 12px; }
+    .modal-overlay.open { display: flex; }
+    #modalCardContent { max-width: 95%; max-height: 96dvh; display: flex; flex-direction: column; align-items: center; position: relative; }
+
+
+    /* 3Dチルト＆回転カードステージ */
+    .card-3d-wrap { perspective: 1200px; display: flex; justify-content: center; align-items: center; cursor: pointer; position: relative; transform-style: preserve-3d; }
+    .card-3d-inner { position: relative; transition: transform 0.15s ease-out; transform-style: preserve-3d; border-radius: 12px; will-change: transform; box-shadow: 0 20px 45px rgba(0,0,0,0.85); height: 56dvh; max-height: 520px; aspect-ratio: 5 / 7; max-width: 86vw; margin: 0 auto; }
+    .card-3d-inner.flipped { transform: rotateY(180deg) !important; transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1) !important; }
+    .card-3d-inner.spinning { animation: cardSpin 3.5s linear infinite !important; }
+    @keyframes cardSpin { 0% { transform: rotateY(0deg); } 50% { transform: rotateY(180deg); } 100% { transform: rotateY(360deg); } }
+
+
+    /* カードフェイス */
+    .card-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #16171d; border: 2px solid rgba(255,255,255,0.15); box-sizing: border-box; }
+    .card-face.front { position: absolute; inset: 0; }
+    #modalImg, #modalBackImg { width: 100%; height: 100%; object-fit: contain; border-radius: 10px; display: block; position: relative; z-index: 1; }
+    .card-face.back { position: absolute; inset: 0; transform: rotateY(180deg); background: linear-gradient(135deg, #252733 0%, #12131a 50%, #252733 100%); border: 2px solid #585b70; box-shadow: inset 0 0 30px rgba(0,0,0,0.9); flex-direction: column; gap: 8px; text-align: center; }
+
+
+    /* 3D光沢スペキュラー */
+    .card-3d-glare { position: absolute; inset: 0; border-radius: 8px; pointer-events: none; z-index: 5; opacity: 0.75; mix-blend-mode: overlay; background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.15) 35%, transparent 65%); transition: opacity 0.2s ease; }
+
+
+    /* 特殊演出エフェクト（イラストの自然さを保護しつつ外枠と反射を派手にする） */
+    .card-face.effect-holo { box-shadow: 0 0 25px rgba(129, 140, 248, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.2); border-color: #818cf8; }
+    .card-face.effect-holo::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: repeating-linear-gradient(115deg, rgba(255,0,128,0.15) 0%, rgba(0,255,255,0.15) 20%, rgba(255,255,0,0.15) 40%, rgba(0,255,128,0.15) 60%, rgba(255,0,128,0.15) 80%); mix-blend-mode: color-dodge; animation: holoCycle 4s linear infinite; }
+    .card-face.effect-holo::after { content: ''; position: absolute; inset: -40%; z-index: 4; pointer-events: none; background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), rgba(255,255,255,0.45) 0%, transparent 50%), repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 2px, transparent 3px, transparent 20px); mix-blend-mode: screen; }
+    @keyframes holoCycle { 0% { filter: hue-rotate(0deg) brightness(1.1); } 100% { filter: hue-rotate(360deg) brightness(1.1); } }
+
+
+    .card-face.effect-rainbow { box-shadow: 0 0 30px rgba(236, 72, 153, 0.65), 0 0 10px rgba(56, 189, 248, 0.5); border-color: #f472b6; }
+    .card-face.effect-rainbow::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(135deg, rgba(255,0,0,0.2) 0%, rgba(255,165,0,0.2) 25%, rgba(0,255,180,0.2) 50%, rgba(0,128,255,0.2) 75%, rgba(238,130,238,0.2) 100%); mix-blend-mode: soft-light; animation: rainbowDrift 3.5s ease infinite alternate; }
+    .card-face.effect-rainbow::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(to right, transparent 30%, rgba(255,255,255,0.5) 50%, transparent 70%); mix-blend-mode: overlay; transform: rotate(35deg) translateY(-100%); animation: sweepLight 3s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+    @keyframes rainbowDrift { 0% { filter: saturate(1.3) hue-rotate(0deg); } 100% { filter: saturate(2) hue-rotate(60deg); } }
+    @keyframes sweepLight { 0% { transform: rotate(35deg) translateY(-160%); } 100% { transform: rotate(35deg) translateY(160%); } }
+
+
+    .card-face.effect-cyber { box-shadow: 0 0 20px #06b6d4, 0 0 40px rgba(99, 102, 241, 0.8), inset 0 0 15px #06b6d4; border-color: #22d3ee; }
+    .card-face.effect-cyber::before { content: ''; position: absolute; inset: 2px; z-index: 3; pointer-events: none; border: 1px solid rgba(34, 211, 238, 0.4); }
+    .card-face.effect-cyber::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(rgba(34, 211, 238, 0.1) 50%, transparent 50%); background-size: 100% 4px; mix-blend-mode: overlay; opacity: 0.6; animation: cyberScan 2s linear infinite; }
+    @keyframes cyberScan { 0% { background-position: 0 0; } 100% { background-position: 0 40px; } }
+
+
+    .card-face.effect-gold { box-shadow: 0 0 25px rgba(245, 158, 11, 0.8), inset 0 0 20px rgba(251, 191, 36, 0.3); border-color: #fbbf24; }
+    .card-face.effect-gold::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(120deg, rgba(245,158,11,0.2) 10%, rgba(254,240,138,0.4) 40%, rgba(217,119,6,0.2) 70%); mix-blend-mode: color-dodge; animation: goldPulse 2.5s ease-in-out infinite alternate; }
+    .card-face.effect-gold::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; border: 2px solid #fef08a; margin: 3px; border-radius: 6px; opacity: 0.7; }
+    @keyframes goldPulse { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
+
+    .card-face.effect-shimmer { box-shadow: 0 0 20px rgba(168, 85, 247, 0.6); border-color: #c084fc; }
+    .card-face.effect-shimmer::after { content: ''; position: absolute; inset: -80%; z-index: 3; pointer-events: none; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,0.65) 50%, transparent 60%); transform: rotate(-25deg); animation: shimmerSlide 2.5s infinite; mix-blend-mode: overlay; }
+    @keyframes shimmerSlide { 0% { transform: translateX(-120%) rotate(-25deg); } 100% { transform: translateX(120%) rotate(-25deg); } }
+
+
+    /* モーダル情報バー */
+    .modal-details-bar { margin-top: 10px; width: 100%; background: rgba(26, 27, 34, 0.96); border: 1px solid #383a47; border-radius: 9px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+    .modal-title-row { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: bold; }
+    .modal-card-num { color: #a5b4fc; font-size: 14px; }
+    .modal-card-name { color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .modal-card-rarity { font-size: 11px; padding: 2px 7px; background: #373844; border-radius: 4px; color: #fbbf24; font-weight: bold; }
+    .modal-sub-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #cbd5e1; }
+    .modal-ctrl-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; border-top: 1px solid #383a47; padding-top: 6px; font-size: 12px; flex-wrap: wrap; }
+    .modal-ctrl-bar select, .modal-ctrl-bar button { height: 26px; font-size: 11px; background: #2b2c34; border: 1px solid #4f46e5; border-radius: 4px; color: #e0e7ff; padding: 0 6px; outline: none; cursor: pointer; }
+    .spin-btn.active { background: #4f46e5 !important; color: #fff !important; font-weight: bold; }
+
+
+    #modalCloseBtn { position: absolute; top: -14px; right: -14px; width: 44px; height: 44px; background: #2a2b36; border: 2px solid #666; border-radius: 50%; color: #fff; font-size: 20px; font-weight: bold; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 10; }
+
+
+    /* 閲覧専用（共有）モード時のクリーンUI：設定ボタン等の上段を完全非表示 */
+    body.viewer-mode .header-row-1 { display: none !important; }
+    body.viewer-mode #searchContainer { display: none !important; }
+    body.viewer-mode header {
+      min-height: 48px !important;
+      height: auto !important;
+      padding: 7px 10px !important;
+      justify-content: center !important;
+    }
+    body.viewer-mode .header-row-2 {
+      width: 100% !important;
+      gap: 8px !important;
+    }
+    body.viewer-mode #seriesSelect {
+      height: 34px !important;
+      font-size: 14px !important;
+      font-weight: 600 !important;
+    }
+    body.viewer-mode #viewModeSelect {
+      height: 34px !important;
+      font-size: 12.5px !important;
+      font-weight: bold !important;
+    }
+
+    /* 設定モーダル */
+    .settings-card { background: #1e1f26; border: 1px solid #383a47; border-radius: 10px; width: 92%; max-width: 400px; padding: 16px; display: flex; flex-direction: column; gap: 14px; max-height: 90dvh; overflow-y: auto; }
+    .settings-section-title { font-size: 13px; font-weight: bold; color: #a5b4fc; margin-bottom: 6px; }
+    .theme-preset-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .theme-btn, .ui-style-btn { height: 32px; font-size: 12px; font-weight: 500; border-radius: 5px; background: #2b2c34; border: 1px solid #3e404d; color: #f0f0f0; cursor: pointer; }
+    .theme-btn.active, .ui-style-btn.active { border-color: #6366f1; background: #4f46e5; font-weight: bold; }
+  
+    .card-slot.has-placeholder-logo {
+      background: radial-gradient(circle at 50% 50%, rgba(38, 41, 58, 0.6) 0%, rgba(var(--base-rgb), var(--slot-alpha)) 100%) !important;
+      border: 1px dashed rgba(255, 255, 255, 0.3) !important;
+      padding: 4px;
+      box-sizing: border-box;
+    }
+    .card-slot img.placeholder-logo {
+      max-width: 88% !important;
+      max-height: 72% !important;
+      width: auto !important;
+      height: auto !important;
+      object-fit: contain !important;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
+      opacity: 0.88;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .card-slot.unowned img.placeholder-logo {
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.7));
+      opacity: 0.72;
+    }
+    .card-slot:hover img.placeholder-logo {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+    #cardFrontFace.front-has-placeholder-logo {
+      background: radial-gradient(circle at 50% 50%, #25283a 0%, #111218 100%) !important;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    #cardFrontFace.front-has-placeholder-logo #modalImg {
+      width: auto !important;
+      height: auto !important;
+      max-width: 90% !important;
+      max-height: 75% !important;
+      object-fit: contain !important;
+      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.85));
+    }
+
+
+  
+    .version-tag {
+      font-size: 10px;
+      font-weight: bold;
+      background: #312e81;
+      color: #a5b4fc;
+      border: 1px solid #6366f1;
+      padding: 1px 6px;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .badge-viewer {
+      font-size: 11px;
+      font-weight: bold;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid #10b981;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    @keyframes spin-anim {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin-anim 0.6s linear infinite;
+    }
+
+
+  </style>
+</head>
+<body>
+  <!-- サーバー注入データ用コンテナ (構文エラーが絶対に起きない安全構造) -->
+  <script type="application/json" id="serverDataJson">
+<?!= typeof serverData !== "undefined" ? serverData : "[]" ?>
+  </script>
+  <!-- 万一のエラー可視化バナー (画面が真っ暗になるのを防止) -->
+  <div id="gasErrorNotice" style="display:none; position:fixed; top:10px; left:10px; right:10px; z-index:9999999; background:#dc2626; color:#fff; padding:12px 14px; border-radius:8px; font-size:12px; font-family:sans-serif; box-shadow:0 8px 24px rgba(0,0,0,0.7); line-height:1.5;">
+    <div style="font-weight:bold; font-size:13px; margin-bottom:4px;">⚠️ システム警告 / エラー情報</div>
+    <div id="gasErrorNoticeMsg" style="white-space:pre-wrap; font-family:monospace; background:rgba(0,0,0,0.25); padding:8px; border-radius:4px;"></div>
+    <button onclick="document.getElementById('gasErrorNotice').style.display='none'" style="margin-top:8px; background:#fff; color:#dc2626; border:none; padding:4px 12px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;">閉じる</button>
+  </div>
+  <div id="app" class="ui-minimal">
+    <header>
+      <!-- Row 1: 所持数統計 ＆ 各種アクションボタン (共有・更新・検索・設定・ID変更) -->
+      <div class="header-row-1">
+        <div style="display:flex; align-items:center; flex:1 1 auto; min-width:0; gap:6px;">
+          <div id="statsText">所持: -- / --</div>
+          <span class="version-tag" id="appVersionTag">v24</span>
+          <span id="viewerBadge" class="badge-viewer" style="display:none;">👁️ 閲覧専用</span>
+        </div>
+        <div class="header-icons">
+          <button id="quickIdBtn" class="btn" type="button" style="height:28px; padding:0 6px; font-size:11px; background:#312e81; border:1px solid #6366f1; color:#e0e7ff; font-weight:bold; border-radius:5px; white-space:nowrap; display:flex; align-items:center; gap:3px; flex-shrink:0;">📊 ID</button>
+          <button id="shareLinkBtn" class="icon-btn" title="共有URLを取得・コピー" style="background:#1e1b4b; border-color:#818cf8; color:#c7d2fe;">🔗</button>
+          <button id="refreshDataBtn" class="icon-btn" title="最新データを再読み込み">🔄</button>
+          <button id="toggleSearchBtn" class="icon-btn" title="検索">🔍</button>
+          <button id="openSettingsBtn" class="icon-btn" title="設定">⚙</button>
+        </div>
+      </div>
+      <div id="searchContainer">
+        <div class="search-input-wrap">
+          <input type="text" id="searchInput" placeholder="カード名・番号で絞り込み...">
+          <button id="clearSearchBtn" type="button" title="キーワードを消去">✕</button>
+        </div>
+        <button id="closeSearchBtn" type="button">閉じる</button>
+      </div>
+      <!-- Row 2: シリーズ選択（全幅で大きく表示）＆ 表示モード切替 -->
+      <div class="header-row-2">
+        <select id="seriesSelect"></select>
+        <select id="viewModeSelect">
+          <option value="2x2">2x2</option>
+          <option value="2x3">2x3</option>
+          <option value="3x3">3x3</option>
+          <option value="scroll">スクロール</option>
+          <option value="list">カード一覧</option>
+        </select>
+      </div>
+    </header>
+
+
+    <div id="binderArea" class="theme-leather">
+      <div class="ring-column">
+        <div class="ring-hole"></div>
+        <div class="ring-hole"></div>
+        <div class="ring-hole"></div>
+      </div>
+      <div id="cardGrid" class="grid-2x2"></div>
+      <div class="ring-column">
+        <div class="ring-hole"></div>
+        <div class="ring-hole"></div>
+        <div class="ring-hole"></div>
+      </div>
+      <button id="prevBtn" class="nav-btn">‹</button>
+      <button id="nextBtn" class="nav-btn">›</button>
+      <div id="pageBadge">Page 1 / 1</div>
+    </div>
+
+
+    <div id="scrollGalleryContainer">
+      <div id="scrollGalleryGrid"></div>
+    </div>
+
+
+    <div id="listViewContainer">
+      <table class="list-table">
+        <thead>
+          <tr><th>No</th><th>名称</th><th>レア</th><th>状態</th></tr>
+        </thead>
+        <tbody id="listTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- 3D演出・裏面対応拡大プレビューモーダル -->
+  <div id="modal" class="modal-overlay">
+    <div id="modalCardContent">
+      <button id="modalCloseBtn">✕</button>
+      
+      <!-- 3Dチルト・回転カードラッパー -->
+      <div class="card-3d-wrap" id="card3dWrap" title="マウス移動/タッチで立体チルト、タップで裏面反転">
+        <div class="card-3d-inner" id="card3dInner">
+          <div class="card-face front" id="cardFrontFace">
+            <img id="modalImg" src="" alt="表面">
+            <div class="card-3d-glare" id="cardGlare"></div>
+          </div>
+          <div class="card-face back" id="cardBackFace">
+            <img id="modalBackImg" src="" alt="裏面写真" style="display:none;">
+            <div id="autoBackContent" style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; padding:14px;">
+              <div id="backIcon" style="font-size:36px;">⚔️</div>
+              <div id="backTitle" style="font-size:15px; font-weight:bold; letter-spacing:2px; color:#cbd5e1; margin-top:6px;">NIKKE</div>
+              <div id="backSub" style="font-size:10px; color:#a5b4fc; letter-spacing:1px; margin-top:2px;">GUN GIRL METAL CARD</div>
+              <div id="backSpecPlate" style="margin-top:14px; background:rgba(0,0,0,0.5); border:1px solid #444; border-radius:5px; padding:6px 10px; font-size:11px; color:#cbd5e1;"></div>
+              <div style="font-size:10px; color:#888; margin-top:12px;">TAP TO FLIP</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="modal-details-bar">
+        <div class="modal-title-row">
+          <span id="modalCardNum" class="modal-card-num">#--</span>
+          <span id="modalCardName" class="modal-card-name">--</span>
+          <span id="modalCardRarity" class="modal-card-rarity">-</span>
+        </div>
+        <div class="modal-sub-row">
+          <span id="modalCardSeries" class="modal-card-series">--</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span id="lineupBadge" style="display:none; background:#0284c7; color:#fff; font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:bold;">🖼️ 公式見本表示中</span>
+            <span id="modalCardStatus" class="modal-card-status">--</span>
+          </div>
+        </div>
+        <div class="modal-ctrl-bar">
+          <label>開いた時:<select id="previewDefaultSpinSelect"><option value="stop">静止</option><option value="spin">3D回転</option></select></label>
+          <label>演出:<select id="cardEffectSelect"><option value="none">なし</option><option value="holo">✨ ウルトラホロ</option><option value="rainbow">🌈 オーロラレインボー</option><option value="cyber">⚡ サイバーネオン</option><option value="gold">👑 ゴールド箔押し</option><option value="shimmer">💫 メタリック</option></select></label>
+          <button id="spinBtn" class="spin-btn">💫 回転切替</button>
+          <button id="toggleLineupBtn" class="spin-btn" style="display:none; background:#0f172a; border:1px solid #38bdf8; color:#38bdf8;" title="公式ラインナップ見本画像と切り替え">🖼️ 見本画像</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 共有URLモーダル -->
+  <div id="shareModal" class="modal" style="display:none; align-items:center; justify-content:center; z-index:10000; background:rgba(0,0,0,0.75);">
+    <div class="modal-content" style="max-width:440px; width:92%; background:#1a1c24; border:1px solid #4f46e5; border-radius:12px; padding:18px; box-shadow:0 8px 32px rgba(0,0,0,0.6); color:#f1f5f9;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="margin:0; font-size:16px; color:#c7d2fe; display:flex; align-items:center; gap:6px;">🔗 バインダー共有リンク</h3>
+        <button id="closeShareModalBtn" type="button" style="background:none; border:none; color:#94a3b8; font-size:20px; cursor:pointer; padding:0 4px;">✕</button>
+      </div>
+
+      <div id="localWarningNotice" style="display:none; background:#451a03; border:1px solid #f59e0b; border-radius:8px; padding:10px; font-size:11.5px; color:#fde68a; margin-bottom:12px; line-height:1.5;">
+        ⚠️ <b>注意（ローカルアドレスで起動中）</b><br>
+        現在開いているURL（127.0.0.1）は、お使いの端末専用です。このまま他人に送っても相手は見られません。<br>
+        他人に共有する場合は、<b>GAS Webアプリ（.../exec?page=binder）</b>のURLをご利用ください。
+      </div>
+
+      <div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">共有用URL（閲覧専用・設定ボタン非表示）:</div>
+      <div style="font-size:11px; color:#a5b4fc; margin-bottom:8px; line-height:1.4;">
+        ※相手が開いたときは「設定・ID変更・更新」等のボタンが全て隠れ、シリーズ選択と表示方法のみのシンプルな画面になります。
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:12px;">
+        <input type="text" id="shareUrlInput" readonly style="flex:1; background:#0f1117; border:1px solid #3b4261; border-radius:6px; color:#e2e8f0; padding:8px 10px; font-size:12px; outline:none;" />
+        <button id="copyShareUrlBtn" type="button" style="background:#4f46e5; color:#fff; border:none; border-radius:6px; padding:0 12px; font-size:12px; font-weight:bold; cursor:pointer; white-space:nowrap;">📋 コピー</button>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px; color:#cbd5e1; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="shareCurrentSeriesCheck" checked style="accent-color:#6366f1;">
+          現在選択中のシリーズ（<span id="shareSeriesNameLabel" style="color:#a5b4fc; font-weight:bold;"></span>）を開くリンクにする
+        </label>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button id="nativeShareBtn" type="button" style="flex:1; background:#22c55e; color:#fff; border:none; border-radius:6px; padding:10px; font-size:13px; font-weight:bold; cursor:pointer; display:none; align-items:center; justify-content:center; gap:6px;">📱 LINE / アプリで送る</button>
+        <button id="cancelShareBtn" type="button" style="flex:1; background:#2b2c34; color:#cbd5e1; border:1px solid #3e404d; border-radius:6px; padding:10px; font-size:13px; cursor:pointer;">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- クイックID変更モーダル -->
+  <div id="quickIdModal" class="settings-modal" style="display:none;">
+    <div class="settings-content" style="max-width: 420px;">
+      <div class="settings-header">
+        <div class="settings-title">📊 カードリストIDの変更</div>
+        <button id="closeQuickIdBtn" class="close-btn" type="button">✕</button>
+      </div>
+      <div style="font-size:12px; color:#a0a0b0; margin-bottom:10px; line-height:1.5;">
+        連携するGoogleスプレッドシートのIDまたはURLを入力してください。
+      </div>
+      <div style="position:relative; display:flex; align-items:center; margin-bottom:10px;">
+        <input type="text" id="quickIdInput" placeholder="スプレッドシートID または URL" style="width:100%; height:34px; padding:0 30px 0 8px; font-size:12px; background:#2b2c34; color:#fff; border:1px solid #3e404d; border-radius:5px; outline:none;">
+        <button id="clearQuickIdBtn" type="button" style="position:absolute; right:4px; width:22px; height:22px; background:transparent; border:none; color:#888; font-size:14px; cursor:pointer;">✕</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <button id="quickApplyLatestBtn" type="button" style="width:100%; height:32px; background:#1e293b; border:1px dashed #6366f1; border-radius:5px; color:#a5b4fc; font-size:11px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px;">
+          ⚡ 最新カードリスト（DCBカードリスト）を即座に適用
+        </button>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="quickIdSaveBtn" type="button" style="flex:1; height:34px; background:#4f46e5; color:#fff; border:1px solid #6366f1; border-radius:5px; font-size:12px; font-weight:bold; cursor:pointer;">保存して再読み込み</button>
+        <button id="cancelQuickIdBtn" type="button" style="height:34px; background:#2b2c34; color:#aaa; border:1px solid #3e404d; border-radius:5px; font-size:12px; padding:0 12px; cursor:pointer;">閉じる</button>
+      </div>
+      <div id="quickIdCurrentLabel" style="font-size:10px; color:#888; word-break:break-all; margin-top:8px;"></div>
+    </div>
+  </div>
+
+
+  <!-- 設定モーダル -->
+  <div id="settingsModal" class="modal-overlay">
+    <div class="settings-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:bold; font-size:15px;">⚙ アプリ設定</span>
+        <button id="closeSettingsBtn" style="background:transparent; border:none; color:#aaa; font-size:18px; cursor:pointer;">✕</button>
+      </div>
+
+
+      <div>
+        <div class="settings-section-title">✨ UI装飾スタイル</div>
+        <div class="theme-preset-group">
+          <button class="ui-style-btn" data-style="minimal">ミニマル（標準）</button>
+          <button class="ui-style-btn" data-style="neon">⚡ サイバーネオン</button>
+          <button class="ui-style-btn" data-style="gold">👑 ゴールドリッチ</button>
+          <button class="ui-style-btn" data-style="tactical">🎖️ タクティカル</button>
+        </div>
+      </div>
+
+
+      <div style="background:#252732; padding:12px; border-radius:7px; border:1px solid #3e404d;">
+        <div class="settings-section-title">📷 写真インデックスシート作成</div>
+        <div style="font-size:12px; color:#a0a0b0; margin-bottom:8px; line-height:1.4;">
+          撮影した写真を複数選択すると、ファイル名入りの一覧画像（1枚）を自動生成して保存します。
+        </div>
+        <label style="display:flex; height:34px; background:#4f46e5; border-radius:5px; font-size:12px; font-weight:bold; color:#fff; align-items:center; justify-content:center; cursor:pointer;">
+          📸 写真をまとめて選択してシート作成
+          <input type="file" id="contactSheetInput" multiple style="display:none;">
+        </label>
+        <div id="contactSheetStatus" style="font-size:11px; color:#818cf8; margin-top:5px;"></div>
+      </div>
+
+
+      <div>
+        <div class="settings-section-title">🎨 背景テーマ・透過調整</div>
+        <div class="theme-preset-group">
+          <button class="theme-btn" data-theme="leather">バインダー風（レザー）</button>
+          <button class="theme-btn" data-theme="refill">リフィル風（グリッド）</button>
+          <button class="theme-btn" data-theme="playmat">プレイマット風</button>
+          <button class="theme-btn" data-theme="wood">ウッド調（木目）</button>
+        </div>
+        <div style="margin-top:10px; background:#252732; padding:10px; border-radius:7px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
+            <span style="color:#aaa;">ポケット色 透過度（低いほど背景が見える）</span>
+            <span id="opacityValText" style="color:#818cf8; font-weight:bold;">35%</span>
+          </div>
+          <input type="range" id="bgOpacityRange" min="0" max="100" value="35" style="width:100%; height:5px; cursor:pointer;">
+        </div>
+        <div style="margin-top:8px; display:flex; align-items:center; justify-content:space-between; background:#252732; padding:8px 10px; border-radius:7px;">
+          <span style="font-size:12px; color:#aaa;">ベースカラー（下地色）</span>
+          <input type="color" id="bgBaseColor" value="#121214" style="border:none; width:32px; height:26px; background:transparent; cursor:pointer;">
+        </div>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <label style="flex:1; height:28px; background:#2b2c34; border:1px solid #4f46e5; border-radius:5px; font-size:11px; color:#e0e7ff; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            📁 背景画像アップロード
+            <input type="file" id="bgFileInput" accept="image/*" style="display:none;">
+          </label>
+          <button id="resetBgBtn" style="height:28px; background:#2b2c34; border:1px solid #3e404d; border-radius:5px; font-size:11px; color:#aaa; cursor:pointer;">標準に戻す</button>
+        </div>
+      </div>
+
+
+      <div style="border-top:1px solid #2d2e36; padding-top:10px; margin-top:6px;">
+        <div class="settings-section-title">📊 データ連携設定</div>
+        <div style="font-size:12px; color:#a0a0b0; margin-bottom:8px; line-height:1.4;">
+          GoogleドライブのカードリストのIDまたはURLを入力してください。新列構成（E:所持URL、F:所持裏URL、G:未所持URL、H:未所持裏URL、I:所持フラグ、J:ロゴ、K:背景）に完全対応しています。
+        </div>
+        <div style="position:relative; display:flex; align-items:center; margin-bottom:8px;">
+          <input type="text" id="settingIdInput" placeholder="スプレッドシートID または URL" style="width:100%; height:32px; padding:0 30px 0 8px; font-size:12px; background:#2b2c34; color:#fff; border:1px solid #3e404d; border-radius:5px;">
+          <button id="clearSettingIdBtn" type="button" style="position:absolute; right:4px; width:22px; height:22px; background:transparent; border:none; color:#888; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button id="saveSettingBtn" style="flex:1; height:32px; background:#4f46e5; color:#fff; border:1px solid #6366f1; border-radius:5px; font-size:12px; font-weight:bold; cursor:pointer;">保存して再読み込み</button>
+          <button id="resetSettingBtn" style="height:32px; background:#2b2c34; color:#aaa; border:1px solid #3e404d; border-radius:5px; font-size:12px; cursor:pointer;">最新初期値</button>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="display:flex; height:32px; background:#2b2c34; border:1px solid #3e404d; border-radius:5px; font-size:12px; color:#e0e7ff; align-items:center; justify-content:center; cursor:pointer;">
+            📂 ローカルCSVファイルを直接選択
+            <input type="file" id="localCsvInput" accept=".csv,text/csv" style="display:none;">
+          </label>
+        </div>
+        <div id="currentIdLabel" style="font-size:10px; color:#888; word-break:break-all; margin-top:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // ★グローバルエラー捕捉（何が起きても画面で原因が100%わかるように通知）
+    window.onerror = function(msg, url, line, col, err) {
+      console.error("Global JS Error:", msg, "at line", line);
+      const box = document.getElementById("gasErrorNotice");
+      const msgEl = document.getElementById("gasErrorNoticeMsg");
+      if (box && msgEl) {
+        box.style.display = "block";
+        msgEl.textContent = "エラー内容: " + msg + "\n発生行: " + line + " 行目 (列: " + col + ")" + (err && err.stack ? "\nスタック: " + err.stack : "");
+      }
+    };
+
+    // 最新スプレッドシートID: カードリスト_20260916_4（新並び替え対応）
+    const DEFAULT_SPREADSHEET_ID = "1I7COKAxmn1yXsc3ueWD-YkKjOegULnanBLRxUUUW55w";
+    const STORAGE_KEY_ID = "digital_binder_spreadsheet_id";
+    const STORAGE_KEY_SERIES = "digital_binder_selected_series";
+    const STORAGE_KEY_VIEW = "digital_binder_view_mode";
+    const STORAGE_KEY_THEME = "digital_binder_bg_theme";
+    const STORAGE_KEY_CUSTOM_BG = "digital_binder_custom_bg";
+    const STORAGE_KEY_BASE_COLOR = "digital_binder_base_color";
+    const STORAGE_KEY_OPACITY = "digital_binder_opacity";
+    const STORAGE_KEY_UI_STYLE = "digital_binder_ui_style";
+    const STORAGE_KEY_PREVIEW_SPIN = "digital_binder_preview_spin";
+    const STORAGE_KEY_CARD_EFFECT = "digital_binder_card_effect";
+
+
+    // スプレッドシート未指定時やオフライン用のフォールバックロゴマップ
+    const DEFAULT_SERIES_LOGOS = {
+      "ガンガールメタルカードコレクション Vol.1": "https://drive.google.com/thumbnail?id=18eGfgNzyffAj63Z0DkAAyf03OwJCk0HG&sz=w800",
+      "ガンガールメタルカードコレクション Vol.2": "https://drive.google.com/thumbnail?id=1atDy3wOOGPS22_fxbJE0gmu2DMYfytr1&sz=w800",
+      "ガンガールメタルカードコレクション Vol.3": "https://drive.google.com/thumbnail?id=1cKReF9T2Y7kLApooSw7Aa5eu3dmLh90B&sz=w800",
+      "勝利の女神：NIKKE ウエハース": "https://www.bandai.co.jp/candy/published/bnc_files/product/Vpw/000000380911NvsNWOQ3ceMMKPsSJzQSTNwwWYhLUC0reVpw.jpg",
+      "勝利の女神：NIKKE ウエハース2": "https://www.bandai.co.jp/candy/published/bnc_files/product/qdS/000000404095WKKO0yx8rrY5KXz97Obcg1x6ZJXpD43bCqdS.jpg",
+      "勝利の女神：NIKKE ウエハース3": "https://www.bandai.co.jp/candy/published/bnc_files/product/RVI/000000426455QGmY9RnYx15nCYyXt7HG7Kpd4WU7dap8pRVI.jpg",
+      "勝利の女神：NIKKE ウエハース4": "https://www.bandai.co.jp/candy/published/bnc_files/product/jwk/000000453423HA8k0ptl290e8pEz1RWihCeoNpUMcDXaXjwk.jpg",
+      "勝利の女神：NIKKE ウエハース５": "https://www.bandai.co.jp/candy/published/bnc_files/product/xpN/000000478221tcuhKfhQkk21IxYb3SJjZjviaLzJF9wU5xpN.jpg",
+      "ちいかわ ウエハース ラッキーカードコレクション": "https://www.bandai.co.jp/candy/published/bnc_files/product/vg4/000000410427u1rQZ916PjB7w3N1y7gZ4wDphn2jJz8avg4.jpg",
+      "ちいかわ ウエハース ラッキーカードコレクション2": "https://www.bandai.co.jp/candy/published/bnc_files/product/fbv/000000445634gIuK2N1v4bC1kS4wL8uJ3rQ9vHn7yJ8mfbv.jpg",
+      "映画ちいかわ 人魚の島のひみつ ウエハース": "https://drive.google.com/thumbnail?id=1Uz2xlx5KAXxhOJoreCx4dUBGCTJdZKgI&sz=w800",
+      "元祖SDガンダムスナック": "https://www.bandai.co.jp/candy/gundam/sdgundamSnack/01/01.jpg",
+      "元祖SDガンダムスナック2": "https://www.bandai.co.jp/candy/published/bnc_files/product/YiT/000000463405ltNIowwVShVfrHUkfcRfK4wLDhDpisbjUYiT.jpg",
+      "SDガンダム ジージェネレーション エターナル スナック01": "https://www.bandai.co.jp/candy/published/bnc_files/product/2I2/000000472469rP5bRtWFeRRzHsLHoToPeXosBDHlsw1iE2I2.jpg"
+    };
+
+
+    // スプレッドシート未指定時やオフライン用のフォールバック背景マップ
+    const DEFAULT_SERIES_BACKGROUNDS = {
+      "ガンガールメタルカードコレクション Vol.1": "https://drive.google.com/thumbnail?id=1hhFFi06jWA8999OhuH8jIPwIVGnQX5Qk&sz=w1600",
+      "ガンガールメタルカードコレクション Vol.2": "https://drive.google.com/thumbnail?id=1lGvPgqCEvGwW9YbOU5m-fk4qtW0oZvoQ&sz=w1600",
+      "ガンガールメタルカードコレクション Vol.3": "https://drive.google.com/thumbnail?id=1nUgiZR5xOhcxOnUZrW1dfC4D_bGcor7-&sz=w1600"
+    };
+
+
+    // スプレッドシートから読み込んだシリーズ別代表設定（所持フラグ、ロゴ、背景）
+    let loadedSeriesFlags = {};
+    let loadedSeriesLogos = {};
+    let loadedSeriesBackgrounds = {};
+    let loadedSeriesShares = {};
+
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const isViewerMode = urlParams.get('share') === '1' || urlParams.get('share') === 'true' || urlParams.get('mode') === 'view';
+    if (isViewerMode) {
+      document.body.classList.add("viewer-mode");
+    }
+
+
+    // 画像が何もないカード（プレビュー含む）用の精密ダミーカードSVG生成
+    function makeDummyCardDataUrl(card) {
+      const cleanSeries = String((card && card.series) || "CARD BINDER").replace(/[<>&"']/g, "");
+      const cleanNum = String((card && card.number) || "").replace(/[<>&"']/g, "");
+      const cleanName = String((card && card.name) || "NO IMAGE").replace(/[<>&"']/g, "");
+      const cleanRarity = String((card && card.rarity) || "-").replace(/[<>&"']/g, "");
+      const isOwned = !!(card && card.isOwned);
+
+
+      const statusText = isOwned ? "✔ 所持" : "✖ 未所持";
+      const statusBg = isOwned ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)";
+      const statusStroke = isOwned ? "#10b981" : "#ef4444";
+      const statusColor = isOwned ? "#34d399" : "#f87171";
+
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 450" width="320" height="450">
+        <defs>
+          <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1e202c"/>
+            <stop offset="50%" stop-color="#11131b"/>
+            <stop offset="100%" stop-color="#171924"/>
+          </linearGradient>
+          <linearGradient id="metalEdge" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1"/>
+            <stop offset="50%" stop-color="#818cf8"/>
+            <stop offset="100%" stop-color="#c7d2fe"/>
+          </linearGradient>
+        </defs>
+        <rect width="320" height="450" rx="14" fill="url(#cardBg)"/>
+        <rect x="6" y="6" width="308" height="438" rx="10" fill="none" stroke="url(#metalEdge)" stroke-width="2" opacity="0.8"/>
+        <rect x="12" y="12" width="296" height="426" rx="8" fill="none" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1"/>
+
+
+        <rect x="16" y="16" width="288" height="26" rx="5" fill="rgba(30, 33, 46, 0.9)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <text x="24" y="34" fill="#cbd5e1" font-size="10" font-family="sans-serif" font-weight="bold">${cleanSeries}</text>
+        <rect x="268" y="19" width="30" height="20" rx="4" fill="rgba(99, 102, 241, 0.3)" stroke="#818cf8" stroke-width="1"/>
+        <text x="283" y="34" fill="#e0e7ff" font-size="11" font-family="sans-serif" font-weight="bold" text-anchor="middle">${cleanRarity}</text>
+
+
+        <rect x="22" y="52" width="276" height="286" rx="8" fill="rgba(10, 12, 18, 0.65)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+
+        <g transform="translate(160, 160)">
+          <circle r="46" fill="rgba(99, 102, 241, 0.08)" stroke="rgba(129, 140, 248, 0.4)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <polygon points="0,-32 28,-16 28,16 0,32 -28,16 -28,-16" fill="none" stroke="#818cf8" stroke-width="2" opacity="0.75"/>
+          <path d="M-10 -5 L0 -16 L10 -5 L5 -5 L5 12 L-5 12 L-5 -5 Z" fill="#818cf8" opacity="0.85"/>
+        </g>
+
+
+        <text x="160" y="240" fill="#818cf8" font-size="24" font-family="sans-serif" font-weight="900" text-anchor="middle">#${cleanNum}</text>
+        <text x="160" y="268" fill="#f8fafc" font-size="15" font-family="sans-serif" font-weight="bold" text-anchor="middle">${cleanName}</text>
+        <text x="160" y="292" fill="#64748b" font-size="10" font-family="sans-serif" font-weight="600" text-anchor="middle" letter-spacing="2">DUMMY CARD / NO IMAGE</text>
+
+
+        <rect x="16" y="350" width="288" height="82" rx="8" fill="rgba(24, 26, 38, 0.95)" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1"/>
+        <rect x="26" y="362" width="64" height="22" rx="11" fill="${statusBg}" stroke="${statusStroke}" stroke-width="1"/>
+        <text x="58" y="377" fill="${statusColor}" font-size="10" font-family="sans-serif" font-weight="bold" text-anchor="middle">${statusText}</text>
+
+
+        <text x="100" y="374" fill="#f1f5f9" font-size="12" font-family="sans-serif" font-weight="bold">${cleanName}</text>
+        <text x="100" y="392" fill="#94a3b8" font-size="10" font-family="sans-serif">CARD NO: #${cleanNum} (${cleanRarity})</text>
+        <text x="160" y="420" fill="#475569" font-size="9" font-family="sans-serif" text-anchor="middle" letter-spacing="1">DIGITAL CARD BINDER SYSTEM</text>
+      </svg>`;
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+
+
+    function getAutoGeneratedLogo(series, number, name) {
+      return makeDummyCardDataUrl({ series, number, name, rarity: "N", isOwned: false });
+    }
+
+
+    const memoryStore = {};
+    function safeGetItem(k) {
+      try {
+        if (window.localStorage) return window.localStorage.getItem(k);
+      } catch (e) {}
+      return memoryStore[k] || null;
+    }
+    function safeSetItem(k, v) {
+      try {
+        if (window.localStorage) { window.localStorage.setItem(k, v); return; }
+      } catch (e) {}
+      memoryStore[k] = String(v);
+    }
+    function safeRemoveItem(k) {
+      try {
+        if (window.localStorage) { window.localStorage.removeItem(k); return; }
+      } catch (e) {}
+      delete memoryStore[k];
+    }
+
+
+    function hexToRgb(hex) {
+      let c = String(hex).replace("#", "");
+      if (c.length === 3) c = c.split("").map(x => x + x).join("");
+      const num = parseInt(c, 16);
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      return r + "," + g + "," + b;
+    }
+
+
+    function extractFirstGroup(regex, str) {
+      const res = regex.exec(str);
+      if (!res) return "";
+      const groups = Array.from(res);
+      groups.shift();
+      return groups.shift() || "";
+    }
+
+
+    function parseSpreadsheetId(input) {
+      if (!input) return "";
+      const trimmed = input.trim();
+      const id1 = extractFirstGroup(new RegExp("/spreadsheets/d/([a-zA-Z0-9_-]+)"), trimmed);
+      if (id1) return id1;
+      const id2 = extractFirstGroup(new RegExp("id=([a-zA-Z0-9_-]+)"), trimmed);
+      if (id2) return id2;
+      return trimmed;
+    }
+
+
+    function getCurrentSpreadsheetId() {
+      return safeGetItem(STORAGE_KEY_ID) || DEFAULT_SPREADSHEET_ID;
+    }
+
+
+    function getCsvExportUrl() {
+      const id = getCurrentSpreadsheetId();
+      return "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv";
+    }
+
+
+    let allCards = [];
+    let currentSeries = "";
+    let currentCards = [];
+    let currentPage = 1;
+    let viewMode = safeGetItem(STORAGE_KEY_VIEW) || "2x2";
+
+
+    const appEl = document.getElementById("app");
+    const seriesSelect = document.getElementById("seriesSelect");
+    const viewModeSelect = document.getElementById("viewModeSelect");
+    const cardGrid = document.getElementById("cardGrid");
+    const pageBadge = document.getElementById("pageBadge");
+    const statsText = document.getElementById("statsText");
+    const binderArea = document.getElementById("binderArea");
+    const scrollGalleryContainer = document.getElementById("scrollGalleryContainer");
+    const scrollGalleryGrid = document.getElementById("scrollGalleryGrid");
+    const listViewContainer = document.getElementById("listViewContainer");
+    const listTableBody = document.getElementById("listTableBody");
+    const modal = document.getElementById("modal");
+    const modalCardContent = document.getElementById("modalCardContent");
+    const modalImg = document.getElementById("modalImg");
+    const modalBackImg = document.getElementById("modalBackImg");
+    const autoBackContent = document.getElementById("autoBackContent");
+    const backIcon = document.getElementById("backIcon");
+    const backTitle = document.getElementById("backTitle");
+    const backSub = document.getElementById("backSub");
+    const backSpecPlate = document.getElementById("backSpecPlate");
+    const card3dWrap = document.getElementById("card3dWrap");
+    const card3dInner = document.getElementById("card3dInner");
+    const cardFrontFace = document.getElementById("cardFrontFace");
+    const cardBackFace = document.getElementById("cardBackFace");
+    const cardGlare = document.getElementById("cardGlare");
+    const spinBtn = document.getElementById("spinBtn");
+    const previewDefaultSpinSelect = document.getElementById("previewDefaultSpinSelect");
+    const cardEffectSelect = document.getElementById("cardEffectSelect");
+    const modalCloseBtn = document.getElementById("modalCloseBtn");
+    const searchContainer = document.getElementById("searchContainer");
+    const searchInput = document.getElementById("searchInput");
+
+
+    const settingsModal = document.getElementById("settingsModal");
+    const openSettingsBtn = document.getElementById("openSettingsBtn");
+    const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+    const settingIdInput = document.getElementById("settingIdInput");
+    const clearSettingIdBtn = document.getElementById("clearSettingIdBtn");
+    const saveSettingBtn = document.getElementById("saveSettingBtn");
+    const resetSettingBtn = document.getElementById("resetSettingBtn");
+    const currentIdLabel = document.getElementById("currentIdLabel");
+    const localCsvInput = document.getElementById("localCsvInput");
+    const contactSheetInput = document.getElementById("contactSheetInput");
+    const contactSheetStatus = document.getElementById("contactSheetStatus");
+    const bgFileInput = document.getElementById("bgFileInput");
+    const resetBgBtn = document.getElementById("resetBgBtn");
+    const themeBtns = document.querySelectorAll(".theme-btn");
+    const uiStyleBtns = document.querySelectorAll(".ui-style-btn");
+    const bgOpacityRange = document.getElementById("bgOpacityRange");
+    const opacityValText = document.getElementById("opacityValText");
+    const bgBaseColor = document.getElementById("bgBaseColor");
+
+
+    function updateSettingsDisplay() {
+      const curId = getCurrentSpreadsheetId();
+      if (settingIdInput) settingIdInput.value = curId;
+      if (currentIdLabel) currentIdLabel.textContent = "現在参照中ID: " + curId;
+    }
+
+
+    function openSettings() {
+      updateSettingsDisplay();
+      if (settingsModal) settingsModal.classList.add("open");
+    }
+
+
+    function closeSettings() {
+      if (settingsModal) settingsModal.classList.remove("open");
+    }
+
+
+    if (openSettingsBtn) openSettingsBtn.addEventListener("click", openSettings);
+    if (closeSettingsBtn) closeSettingsBtn.addEventListener("click", closeSettings);
+    if (settingsModal) {
+      settingsModal.addEventListener("click", (e) => {
+        if (e.target === settingsModal) closeSettings();
+      });
+    }
+    if (clearSettingIdBtn) {
+      clearSettingIdBtn.addEventListener("click", () => {
+        if (settingIdInput) {
+          settingIdInput.value = "";
+          settingIdInput.focus();
+        }
+      });
+    }
+
+
+    function parseCSV(text) {
+      if (!text) return [];
+      const lines = text.trim().split(/\r?\n/);
+      const result = [];
+      lines.forEach((line, idx) => {
+        if (idx === 0) return;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("<") || trimmed.startsWith("\\<")) return;
+        const row = [];
+        let inQuotes = false;
+        let val = "";
+        for (let i = 0; i < line.length; i++) {
+          const char = line.charAt(i);
+          if (char === '"') inQuotes = !inQuotes;
+          else if (char === ',' && !inQuotes) { row.push(val.trim()); val = ""; }
+          else { val += char; }
+        }
+        row.push(val.trim());
+        if (row.length >= 4 && row[0]) result.push(row);
+      });
+      return result;
+    }
+
+
+    function normalizeImageUrl(url) {
+      if (!url) return "";
+      const fileId = extractFirstGroup(new RegExp("/file/d/([a-zA-Z0-9_-]+)"), url) ||
+                     extractFirstGroup(new RegExp("id=([a-zA-Z0-9_-]+)"), url);
+      if (fileId) {
+        if (url.includes("w1600") || url.includes("背景")) {
+          return "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1600";
+        }
+        return "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w800";
+      }
+      return url;
+    }
+
+
+    function applyUiStyle() {
+      const style = safeGetItem(STORAGE_KEY_UI_STYLE) || "minimal";
+      if (appEl) appEl.className = "ui-" + style;
+      uiStyleBtns.forEach(b => {
+        b.classList.toggle("active", b.dataset.style === style);
+      });
+    }
+
+
+    uiStyleBtns.forEach(b => {
+      b.onclick = () => {
+        safeSetItem(STORAGE_KEY_UI_STYLE, b.dataset.style);
+        applyUiStyle();
+      };
+    });
+
+
+    function applyBackground() {
+      const baseColor = safeGetItem(STORAGE_KEY_BASE_COLOR) || "#121214";
+      const opacityVal = safeGetItem(STORAGE_KEY_OPACITY) || "35";
+      const customBg = safeGetItem(STORAGE_KEY_CUSTOM_BG);
+      const savedTheme = safeGetItem(STORAGE_KEY_THEME) || "leather";
+
+
+      document.documentElement.style.setProperty("--base-rgb", hexToRgb(baseColor));
+      document.documentElement.style.setProperty("--slot-alpha", String(Number(opacityVal) / 100));
+
+
+      if (bgBaseColor) bgBaseColor.value = baseColor;
+      if (bgOpacityRange) bgOpacityRange.value = opacityVal;
+      if (opacityValText) opacityValText.textContent = opacityVal + "%";
+
+
+      const seriesBg = (currentSeries && (loadedSeriesBackgrounds[currentSeries] || DEFAULT_SERIES_BACKGROUNDS[currentSeries])) || "";
+
+
+      const targets = [binderArea, scrollGalleryContainer];
+      targets.forEach(target => {
+        if (!target) return;
+        const wasActive = target.classList.contains("active");
+        if (customBg) {
+          target.className = wasActive ? "active" : "";
+          target.style.backgroundImage = "url(" + customBg + ")";
+        } else if (seriesBg) {
+          target.className = wasActive ? "active" : "";
+          target.style.backgroundImage = "linear-gradient(rgba(18, 18, 20, 0.45), rgba(18, 18, 20, 0.65)), url(\"" + seriesBg + "\")";
+        } else {
+          target.style.backgroundImage = "";
+          target.className = (wasActive ? "active " : "") + "theme-" + savedTheme;
+        }
+      });
+
+
+      themeBtns.forEach(b => {
+        b.classList.toggle("active", !customBg && !seriesBg && b.dataset.theme === savedTheme);
+      });
+    }
+
+
+    themeBtns.forEach(b => {
+      b.onclick = () => {
+        safeRemoveItem(STORAGE_KEY_CUSTOM_BG);
+        safeSetItem(STORAGE_KEY_THEME, b.dataset.theme);
+        applyBackground();
+      };
+    });
+
+
+    if (bgOpacityRange) {
+      bgOpacityRange.oninput = () => {
+        const val = bgOpacityRange.value;
+        if (opacityValText) opacityValText.textContent = val + "%";
+        safeSetItem(STORAGE_KEY_OPACITY, val);
+        document.documentElement.style.setProperty("--slot-alpha", String(Number(val) / 100));
+      };
+    }
+
+
+    if (bgBaseColor) {
+      bgBaseColor.oninput = () => {
+        const col = bgBaseColor.value;
+        safeSetItem(STORAGE_KEY_BASE_COLOR, col);
+        document.documentElement.style.setProperty("--base-rgb", hexToRgb(col));
+      };
+    }
+
+
+    if (bgFileInput) {
+      bgFileInput.onchange = (e) => {
+        const fileList = Array.from(e.target.files);
+        const file = fileList.shift();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          safeSetItem(STORAGE_KEY_CUSTOM_BG, event.target.result);
+          applyBackground();
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+
+
+    if (resetBgBtn) {
+      resetBgBtn.onclick = () => {
+        safeRemoveItem(STORAGE_KEY_CUSTOM_BG);
+        safeSetItem(STORAGE_KEY_THEME, "leather");
+        safeSetItem(STORAGE_KEY_BASE_COLOR, "#121214");
+        safeSetItem(STORAGE_KEY_OPACITY, "35");
+        applyBackground();
+      };
+    }
+
+
+    // 新CSV解析（E列から並び替え対応）：
+    // A列(0): バインダー名
+    // B列(1): カード番号
+    // C列(2): カード名
+    // D列(3): レアリティ
+    // E列(4): 所持URL
+    // F列(5): 所持裏URL
+    // G列(6): 未所持URL
+    // H列(7): 未所持裏URL
+    // I列(8): 所持フラグ（代表1つ入力でシリーズ全体に反映）
+    // J列(9): ロゴ（代表1つ入力でシリーズ全体に反映。裏面デフォルト兼、未所持URLなし時の表面代表に統合）
+    // K列(10): 背景（代表1つ入力でシリーズ全体に反映）
+    function processParsedRows(rows) {
+      if (!rows || rows.length === 0) return false;
+
+
+      const seriesMap = new Map();
+      loadedSeriesFlags = {};
+      loadedSeriesLogos = {};
+      loadedSeriesBackgrounds = {};
+      loadedSeriesShares = {};
+
+
+      // 1. 各シリーズの代表設定（所持フラグ、ロゴ、背景、共有フラグ）を収集
+      rows.forEach(r => {
+        const seriesName = String(r[0] || "").trim();
+        if (!seriesName || seriesName === "バインダー名") return;
+
+
+        const flagRaw = String(r[8] || "").trim();
+        const logoRaw = String(r[9] || "").trim();
+        const bgRaw = String(r[10] || "").trim();
+        const shareRaw = String(r[11] || "").trim().toUpperCase();
+
+
+        // 共有フラグ: L列が明示的にFALSEの場合のみ非公開、それ以外(空欄・TRUE等)は公開中
+        const isShared = (shareRaw !== "FALSE");
+        if (loadedSeriesShares[seriesName] === undefined) {
+          loadedSeriesShares[seriesName] = isShared;
+        }
+
+
+        const cleanLogo = normalizeImageUrl(logoRaw);
+        const cleanBg = normalizeImageUrl(bgRaw);
+
+
+        if (flagRaw !== "" && loadedSeriesFlags[seriesName] === undefined) {
+          loadedSeriesFlags[seriesName] = flagRaw.toUpperCase() === "TRUE";
+        }
+        if (cleanLogo && !loadedSeriesLogos[seriesName]) {
+          loadedSeriesLogos[seriesName] = cleanLogo;
+        }
+        if (cleanBg && !loadedSeriesBackgrounds[seriesName]) {
+          loadedSeriesBackgrounds[seriesName] = cleanBg;
+        }
+      });
+
+
+      // 2. 各カードデータを構築
+      allCards = rows.map(r => {
+        const [
+          seriesName = "", cardNo = "", cardTitle = "", rarityVal = "",
+          ownedRaw = "", ownedBackRaw = "", unownedRaw = "", unownedBackRaw = "",
+          flagVal = "", logoRaw = "", bgRaw = ""
+        ] = r;
+
+
+        const cleanSeries = String(seriesName).trim();
+        if (cleanSeries === "バインダー名") return null;
+        const rawFlagStr = String(flagVal).trim();
+
+
+        // 所持フラグ判定：個別指定があればそれを最優先、空欄ならシリーズ代表フラグ（未設定時はFALSE）
+        let isOwned = false;
+        if (rawFlagStr !== "") {
+          isOwned = rawFlagStr.toUpperCase() === "TRUE";
+        } else if (loadedSeriesFlags[cleanSeries] !== undefined) {
+          isOwned = loadedSeriesFlags[cleanSeries];
+        }
+
+
+        const cleanOwned = normalizeImageUrl(ownedRaw);
+        const cleanOwnedBack = normalizeImageUrl(ownedBackRaw);
+        const cleanUnowned = normalizeImageUrl(unownedRaw);
+        const cleanUnownedBack = normalizeImageUrl(unownedBackRaw);
+
+
+        // シリーズロゴ（J列またはデフォルトマップ）
+        const seriesLogo = loadedSeriesLogos[cleanSeries] || DEFAULT_SERIES_LOGOS[cleanSeries] || "";
+
+
+        // 裏面画像：個別の裏面URL（所持裏 または 未所持裏）があれば優先、なければロゴ
+        const individualBack = (isOwned && cleanOwnedBack) ? cleanOwnedBack : (cleanOwnedBack || cleanUnownedBack || "");
+        const finalBackImg = individualBack || seriesLogo || "";
+
+
+        const card = {
+          series: cleanSeries,
+          number: String(cardNo).trim(),
+          name: String(cardTitle).trim(),
+          rarity: String(rarityVal).trim(),
+          ownedImg: cleanOwned,
+          ownedBackImg: cleanOwnedBack,
+          unownedImg: cleanUnowned,
+          unownedBackImg: cleanUnownedBack,
+          isOwned: isOwned,
+          logo: seriesLogo,
+          backImg: finalBackImg
+        };
+
+
+        if (!seriesMap.has(cleanSeries)) seriesMap.set(cleanSeries, []);
+        seriesMap.get(cleanSeries).push(card);
+        return card;
+      }).filter(Boolean);
+
+
+      // 閲覧専用モード時は、共有OFF (isShared === false) のシリーズを完全除外！
+      if (isViewerMode) {
+        Array.from(seriesMap.keys()).forEach(s => {
+          if (loadedSeriesShares[s] === false) {
+            seriesMap.delete(s);
+          }
+        });
+      }
+
+
+      seriesSelect.innerHTML = "";
+      Array.from(seriesMap.keys()).forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        // オーナーモード時、非公開のシリーズには 🔒 マークを付与
+        const isPrivate = !isViewerMode && (loadedSeriesShares[s] === false);
+        opt.textContent = (isPrivate ? "🔒 " : "") + s;
+        seriesSelect.appendChild(opt);
+      });
+
+
+      // URL指定または前回開いたシリーズを確実に復元して表示
+      const urlSeries = urlParams.get('series');
+      const savedSeries = safeGetItem(STORAGE_KEY_SERIES);
+      if (urlSeries && seriesMap.has(urlSeries.trim())) {
+        seriesSelect.value = urlSeries.trim();
+      } else if (savedSeries && seriesMap.has(savedSeries.trim())) {
+        seriesSelect.value = savedSeries.trim();
+      } else if (seriesSelect.options.length > 0) {
+        seriesSelect.value = seriesSelect.options[0].value;
+      }
+
+      currentSeries = seriesSelect.value;
+      if (currentSeries) {
+        safeSetItem(STORAGE_KEY_SERIES, currentSeries);
+      }
+      onSeriesChange();
+      return true;
+    }
+
+
+    function processCsvText(csvText) {
+      const rows = parseCSV(csvText);
+      return processParsedRows(rows);
+    }
+
+
+    const EMBEDDED_CSV_FALLBACK = `バインダー名,カード番号,カード名,レアリティ,所持URL,所持URL(裏),未所持URL,未所持URL(裏),所持フラグ,ロゴ,背景,共有
+SDガンダム ジージェネレーション エターナル スナック 01,1,ガンダム(EX),UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,2,Ξガンダム(EX),UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,3,ペーネロペー(EX),UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,4,ストライクフリーダムガンダム(EX),UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,5,サイコ・ガンダムMk-III,UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,6,ヅダ(1番機),SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,7,GQuuuuuuX(オメガ・サイコミュ起動時),SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,8,νガンダム,SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,9,サザビー,SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,10,シャイニングガンダム(スーパーモード),SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,11,ウイングガンダム(EW版),SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,12,ドラグーンストライク,SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,13,騎士ガンダム,SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,14,魔王サタンガンダム,SSR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,15,ブラウ・ブロ,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,16,ララァ専用モビルアーマー,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,17,クシャトリヤ,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,18,ガンダムヴァサーゴ,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,19,ガンダムアシュタロン,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,20,ゲイツアサルト(シヴァ専用機),SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,21,ガンダムエクシア,SR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,22,ガンダムMk-II(ティターンズ仕様),R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,23,リック・ディアス(レッドカラー),R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,24,ZII,R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,25,スタークジェガン,R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,26,ガンダム・バルバトス(第1形態),R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,27,ガンダム・エアリアル,R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,28,フェニックスガンダム,R,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,29,ジム,N,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,30,ザクII,N,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,31,シークレット,UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,32,シークレット,UR,,,,,FALSE,,,FALSE
+SDガンダム ジージェネレーション エターナル スナック 01,,GUNDAM GP01Fb（対象シリーズ外）,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,1,ラピ,N,,,,,FALSE,https://drive.google.com/thumbnail?id=18eGfgNzyffAj63Z0DkAAyf03OwJCk0HG&sz=w800,https://drive.google.com/thumbnail?id=1hhFFi06jWA8999OhuH8jIPwIVGnQX5Qk&sz=w1600,FALSE
+ガンガールメタルカードコレクション Vol.1,2,マリアン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,3,アニス,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,4,プリバティ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,5,シグナル,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,6,D,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,7,ヘルム,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,8,ネオン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,9,マスト,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,10,ユニ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,11,リター,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,12,ジュリア,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,13,センチ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,14,ドレイク,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,15,ペッパー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,16,アドミ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,17,ジャッカル,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,18,ラプラス,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,19,ギルティ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,20,シン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,21,クエンシー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,22,エヌ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,23,アリス,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,24,ブラン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,25,ノワール,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,26,ミルク,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,27,ルピー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,28,ドラー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,29,ノベル,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,30,サクラ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,31,バイパー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,32,ココア,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,33,ソーダ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,34,ビスケット,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,35,ロザンナ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,36,メアリー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,37,スノーホワイト,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,38,イサベル,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,39,ラプンツェル,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,40,紅蓮,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,41,ハラン,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,42,ノア,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,43,モダニア,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,44,ニヒルスター,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,45,ドロシー,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,46,OVER ZONE_1,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,47,OVER ZONE_2,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,48,MIRACLE SNOW,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,49,BLUEWATER ISLAND,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.1,50,BRAND NEW YEAR,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,1,エマ：ダーリンレッド,N,,,https://drive.google.com/thumbnail?id=1ype7EyehADfQ2m6NIbeOpKUMLloKe7if&sz=w800,,FALSE,https://drive.google.com/thumbnail?id=1atDy3wOOGPS22_fxbJE0gmu2DMYfytr1&sz=w800,https://drive.google.com/thumbnail?id=1lGvPgqCEvGwW9YbOU5m-fk4qtW0oZvoQ&sz=w1600,FALSE
+ガンガールメタルカードコレクション Vol.2,2,ポリ,N,,,https://drive.google.com/thumbnail?id=13TQ0lBhtpMGI1hHVhlQISmswKkEjsQJL&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,3,ミランダ,N,,,https://drive.google.com/thumbnail?id=1wBmeqZFll27IlmO75ncivIe3xroEmxem&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,4,ブリッド：ブラックムーン,N,,,https://drive.google.com/thumbnail?id=1hZDAKXvIoph6KJM9W5W2GxrpKryd8dJC&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,5,ソリン,N,,,https://drive.google.com/thumbnail?id=1TgycU7LK4bfOMQYBvTQu6O4kIjuCMoxH&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,6,ディーゼル：ストロベリーフラワー,N,,,https://drive.google.com/thumbnail?id=18Fmn7ibdKMNkrA9-ChmNmscvY-Yyu4sk&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,7,ベスティー,N,,,https://drive.google.com/thumbnail?id=1kMfW0jqJ6X66MH3bk0zQKZHzo4-C1Xrh&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,8,ウンファ,N,,,https://drive.google.com/thumbnail?id=18LVpSUijXE1UFjlHUzfApfNBiwhcgZ5f&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,9,ギロチン,N,,,https://drive.google.com/thumbnail?id=1QJslFmRsQV_oSYrQoNo-esQv3ckby4P7&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,10,メイデン,N,,,https://drive.google.com/thumbnail?id=1-t4YAzl5drkRW-WqDiReyeKz4gDmAyJf&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,11,マルチャーナ,N,,,https://drive.google.com/thumbnail?id=1QGVwGHB7AMaFOtqVBsD5sLVKy6bnhDRL&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,12,キリ,N,,,https://drive.google.com/thumbnail?id=1MRaRiB2fXmBlG0TTxk2rWJ40IhPfnK8v&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,13,ラピ：クラシックバカンス,N,,,https://drive.google.com/thumbnail?id=1GZy1fcJvDAhJzT8yn_O0axSJj9goDDbQ&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,14,アンカー,N,,,https://drive.google.com/thumbnail?id=1PcFLlbRWcLxjpc6NHq9xLX8w9s591UvD&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,15,マクスウェル,N,,,https://drive.google.com/thumbnail?id=14Ya2mmnlwxAMNBIDEnQ-UsKaGDy81iCG&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,16,クロウ,N,,,https://drive.google.com/thumbnail?id=1WkM__TkR_phhRVIu_htS1SFCZpI7imjc&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,17,トーブ,N,,,https://drive.google.com/thumbnail?id=1YMzIpZVZiYfGaSObiI-vZe-24ZxgHgwA&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,18,エピネル,N,,,https://drive.google.com/thumbnail?id=10Ic20oW_RU1ilbFVbaZbfGKlXyTsOkDD&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,19,ナガ,N,,,https://drive.google.com/thumbnail?id=1fjsQm6o0M-7C4o8cR1cJH-hswjBSsYyo&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,20,ティア,N,,,https://drive.google.com/thumbnail?id=1Ap4EqXn7aPD2j0gsujvQ9qLs_t6pQWYA&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,21,ミハラ,N,,,https://drive.google.com/thumbnail?id=1Vq8Xc612UJF7vHxwLbOJhkQHH4lIPTJW&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,22,エーテル,N,,,https://drive.google.com/thumbnail?id=11Xx9VMF-z2NKbhpWlxQRvGaEy32wBasJ&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,23,シュガー：コールミー・ハードボイルド,N,,,https://drive.google.com/thumbnail?id=1MfGuVMymWhN6rVLSyZ5FM27cBIEmd8UC&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,24,エクシア,N,,,https://drive.google.com/thumbnail?id=1vqx3SzDFIptsP86PxVxn2X0QNu7haLWI&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,25,プリム：レイジーサマー,N,,,https://drive.google.com/thumbnail?id=1aNk6XEqmXYCWR-MV8LYZ6HccRNx4v9VY&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,26,ユルハ,N,,,https://drive.google.com/thumbnail?id=1CT_9yxLKT2C7pgpIbcSqYsANweY0goBT&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,27,ヤン：サンライズマーケット,N,,,https://drive.google.com/thumbnail?id=1sPYCPcR1bGtSVBnm4ApzDLKlGbTWprUp&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,28,フォルクヴァン,N,,,https://drive.google.com/thumbnail?id=14MeplgOzd93MyUOoq71AZM4Nl-T_1ulC&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,29,ライ,N,,,https://drive.google.com/thumbnail?id=1TybROingD8O_5UzG1_bxnHmIpq6ATAg9&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,30,アリア,N,,,https://drive.google.com/thumbnail?id=12724lxKy4yReLubzfmOiLeryK57Cg830&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,31,ノイズ：チェリーブロッサムステージ,N,,,https://drive.google.com/thumbnail?id=1yAOtEUeR2WbPay0vnWSbqRMmozYFlqkD&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,32,ボリューム,N,,,https://drive.google.com/thumbnail?id=1AC2pDBFANRBOgOpLE_c-pFUeyArQphvp&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,33,ネロ,N,,,https://drive.google.com/thumbnail?id=1qV44j2jmdaP52iGM1KtqVBSfGEC3LSqP&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,34,アニス：スパークリングサマー,N,,,https://drive.google.com/thumbnail?id=19Zkj7izeAZtozkKCOt2mNmNfT9JZkp2t&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,35,ルドミラ：ウィンターオーナー,N,,,https://drive.google.com/thumbnail?id=1FXGBZYNrpONf6h5vJT8fSUgRZ3y3hct_&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,36,ミカ：スノーバディ,N,,,https://drive.google.com/thumbnail?id=1UEYmiU1h43B5Udg3fgEzNaHiELD148xj&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,37,ベロータ,N,,,https://drive.google.com/thumbnail?id=10Bfifeju5ClWRJlybFKH-BEA7XVGEQSU&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,38,ネヴェ,N,,,https://drive.google.com/thumbnail?id=14M7KIYdWim8CAQnwa647YmQFhNMBvDA7&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,39,特殊個体：トーカティブ,N,,,https://drive.google.com/thumbnail?id=1gTrShral5cbl6yhjESCE_q8mUDVNpN8h&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,40,特殊個体：グレイブディガー,N,,,https://drive.google.com/thumbnail?id=1zH_pRZG1AJaUwU0gI2EvBFct5Vy8rOpU&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,41,特殊個体：アルトアイゼン,N,,,https://drive.google.com/thumbnail?id=16CYe9TZW-Auc6z1-Ea8UlexgcyN5ASWd&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,42,特殊個体：ブラックスミス,N,,,https://drive.google.com/thumbnail?id=15R_BRTIrZSqbc-hDhA_aFi99hV-f9Wb-&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,43,特殊個体：モダニア,N,,,https://drive.google.com/thumbnail?id=1jy336rOYZxeYZW-wgtqqnBysHvMvkaKB&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,44,ハラン：バンケット・ウィッチ,R,,,https://drive.google.com/thumbnail?id=1VUWtGZ1Ett4FCWc81uxnvX52Csn_e5Qy&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,45,モダニア：ファースト・アフェクション,R,,,https://drive.google.com/thumbnail?id=1w4Wj0Iq8wWt0A81FaihIoi5koY9DXFup&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,46,ドロシー：ノスタルジア,R,,,https://drive.google.com/thumbnail?id=1L9OkP9AoqxMiQUl1Y2FMZ51TEYYjWoog&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,47,レッドフード,R,,,https://drive.google.com/thumbnail?id=1uShKmxqb0_05ZEB0ObH0H_N9gRHQcwed&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,48,スノーホワイト：イノセントデイズ,R,,,https://drive.google.com/thumbnail?id=1QeT707il0Dc5WPA7rtM80Xe4HVSb1Uzf&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,49,紅蓮：ブラックシャドウ,R,,,https://drive.google.com/thumbnail?id=1jSpIwmZqHl6-yiioiKmGZUHGPmYZ02Kq&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,50,アンダーソン,R,,,https://drive.google.com/thumbnail?id=1cZDgL-OWrQwsrX7wXmDxqgFTvetAFRe0&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,51,イングリッド,R,,,https://drive.google.com/thumbnail?id=1ayApr_RTi5pVM15M72vRKzmx6S6ABQ3S&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,52,シュエン,R,,,https://drive.google.com/thumbnail?id=1Bk96aaO2FEIDjGXdxUW_NpLD055eiCgN&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,53,マスタング,R,,,https://drive.google.com/thumbnail?id=1cs5TXs94DUUMSG6hpQU4YWlCM5tb2CsK&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,54,First Affection,SR,,,https://drive.google.com/thumbnail?id=1uhrFpUYh13YSFudhbTFwMmJtGkuX9nmK&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,55,DAZZLING CUPID,SR,,,https://drive.google.com/thumbnail?id=1R03T6mBAW6NdwwJTOmsm0nvemZqVfQEy&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,56,RED ASH_1,SR,,,https://drive.google.com/thumbnail?id=1jucV4gLPtrkWvfG-Cb0cNKoScTcb_oz_&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,57,RED ASH_2,SR,,,https://drive.google.com/thumbnail?id=15YFkSVDqh33Zl1gf12L4RhUyXKn1eP9K&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.2,58,NEVERLAND,SR,,,https://drive.google.com/thumbnail?id=1CK3aCZltVX_G2x8oivnPcJwVup7GMB3k&sz=w800,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,1,エマ,N,,,,,FALSE,https://drive.google.com/thumbnail?id=1cKReF9T2Y7kLApooSw7Aa5eu3dmLh90B&sz=w800,https://drive.google.com/thumbnail?id=1nUgiZR5xOhcxOnUZrW1dfC4D_bGcor7-&sz=w1600,FALSE
+ガンガールメタルカードコレクション Vol.3,2,ブリッド,N,https://drive.google.com/thumbnail?id=1LMvWnd-ZaGO8BQFh40VABqo_ctAGPyBG&sz=w800,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,3,ディーゼル,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,4,ヘルム,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,5,マルチャーナ：スクールデイズ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,6,プリバティ：アンカインド・メイド,N,https://lh3.googleusercontent.com/d/1kmgXb4fEfUoshWmrvAIB2hle45jTs0Ua,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,7,Ｄ：キラーワイフ,N,https://lh3.googleusercontent.com/d/13_iKQ1DGHdxRsyNOKOrtoYvWMY1KWmQF,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,8,ツバイ,N,https://drive.google.com/thumbnail?id=1bfwcBgTpdtVf48w98b6calNe76Br6CJs&sz=w800,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,9,ファントム,N,https://lh3.googleusercontent.com/d/1VCydUUe0-a3rq0Q7oynLPX8xdHRk9NUi,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,10,メイデン：アイスローズ,N,https://lh3.googleusercontent.com/d/1lhNx5oGEV8WpAuW0lQ9rF4FxuKyoUyyM,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,11,ギロチン：ウィンタースレイヤー,N,https://drive.google.com/thumbnail?id=1rYB_NtSY7XZhqR2pKD-2glLFfgBO6OaA&sz=w800,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,12,ナガ：エレガンスデート,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,13,ティア：スウィートシェフ,N,https://lh3.googleusercontent.com/d/1fc1ajbr7beThMrCtJb1R5oghXWaH1XSo,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,14,エレグ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,15,トロニー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,16,アイン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,17,フローラ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,18,シュガー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,19,アリス,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,20,ブラン：ホワイトラビット,N,https://lh3.googleusercontent.com/d/1lVW9JUI2CuMbhhK_AHmWTZ16F2hRGdWD,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,21,ノワール：ブラックラビット,N,https://lh3.googleusercontent.com/d/1q8lpzNyp3UBgPXat8Y0aVjlVXAxM-_ZR,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,22,プリム,N,https://drive.google.com/thumbnail?id=1l3vybD-9NvffLl_No-DRqwkdUGBiyarS&sz=w800,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,23,メアリー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,24,ルドミラ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,25,ルピー,N,https://lh3.googleusercontent.com/d/1FppKsFUKL9sYTc4RYn_LH3vu7Ty19jJ9,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,26,ヤン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,27,ドラー,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,28,ノベル,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,29,バイパー,N,https://lh3.googleusercontent.com/d/1Xed52cEObo48yv7m0zaDVKUW5RqsvARO,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,30,ノイズ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,31,レオナ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,32,モラン,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,33,エード,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,34,ベイ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,35,クレイ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,36,ロザンナ：シックオーシャン,N,https://lh3.googleusercontent.com/d/1LsSelle62SizTniaXv70UeXb97jrrAMg,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,37,サクラ：ブルーム・イン・サマー,N,https://lh3.googleusercontent.com/d/1bkMWAM7u5SSU7brQacsaQPy-HHfZJqlm,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,38,ルージュ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,39,ルマニ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,40,ネオン,N,https://lh3.googleusercontent.com/d/1rl1PObPxiqHvFXEs5rFwQ5akXTfu8ooF,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,41,デルタ,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,42,N102,N,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,43,ラピ：レッドフード,R,https://lh3.googleusercontent.com/d/1X9qS8SoWB9ynp6w45fE4pWHHLLH2wsSL,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,44,レッドフード：ナンセンスレッド,R,https://lh3.googleusercontent.com/d/1-D42UdcNPi8n2ui8RTmJ3JUf8VDle39g,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,45,紅蓮：ブラックシャドウ - ロンギングフラワー,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,46,クラウン,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,47,シンデレラ,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,48,グレイブ,R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,49,ドロシー (DORO),R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,50,シンデレラ (DORO),R,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,51,ドレイク (DORO),R,https://lh3.googleusercontent.com/d/1g00G4KwT-n7TZwiBK6P-EtiyYarmRdzK,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,52,OLD TALES,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,53,GOLDEN COIN RUSH,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,54,SECRET GARDEN,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,55,BEAUTY FULL SHOT,SR,https://lh3.googleusercontent.com/d/1t3nMPSSLBPSJ0HNG9dAzYRCNPA_YpgLq,,,,TRUE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,56,ONE MORE TIME,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,57,LAST KINGDOM,SR,,,,,FALSE,,,FALSE
+ガンガールメタルカードコレクション Vol.3,58,PHANTOM THIEF VS DETECTIVE,SR,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,1,たぬきだもん,ラッキーアイテムカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/vg4/000000410427u1rQZ916PjB7w3N1y7gZ4wDphn2jJz8avg4.jpg,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,2,イースターエッグ,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,3,ひっかきガードッ,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,4,唐辛子の束,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,5,顔まわり用付属品,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,6,リボン,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,7,たんじょうび,ラッキーレアアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,8,豆大福,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,9,いきアップ!!,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,10,おつまみ畑,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,11,YADA!!IYA!!,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,12,おかき応募,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,13,いなりあげもち,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,14,いい日,ラッキーレアワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,15,パジャマパーティーズ,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,16,こうつうせいり,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,17,はらっぱでのんびり,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,18,七夕,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,19,どくしょ,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,20,腹筋,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,21,お祝いソング,ラッキーレアアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,22,カニ爪唐揚げ,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,23,バニラアイス,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,24,ごはんのせ焼きそば,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,25,ピザの方,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,26,プリン,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,27,いなりあげもちうどん,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,28,チョコレート,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,29,ホイップクリーム,ラッキーレアフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション,30,ともだち,ハイパーレアカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,1,季節だもん,ラッキーアイテムカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/fbv/000000445634gIuK2N1v4bC1kS4wL8uJ3rQ9vHn7yJ8mfbv.jpg,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,2,イースター,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,3,花束,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,4,さくら,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,5,クリスマスプレゼント,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,6,ハート,ラッキーアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,7,エンジェル,ラッキーレアアイテムカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,8,よふかし,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,9,成長,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,10,サイダーフルーツポンチ湧きどころ,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,11,ヘタ授与式,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,12,優しさ,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,13,ともだち,ラッキーワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,14,お宝,ラッキーレアワードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,15,花占い,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,16,おそろい,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,17,運転,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,18,おしゃべり,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,19,お泊まり,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,20,一句,ラッキーアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,21,豆まき,ラッキーレアアクションカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,22,梅干し,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,23,手巻き寿司,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,24,もちチーズ,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,25,ラーメン,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,26,スイカ,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,27,巨・モダン焼き,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,28,カレーのお供たち,ラッキーフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,29,クリスマスチキンとシュトーレン,ラッキーレアフードカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,30,ともだち,ハイパーレアカード,,,,,FALSE,,,FALSE
+ちいかわ ウエハース ラッキーカードコレクション2,31,福の神,シークレットカード,,,,,FALSE,,,FALSE
+映画ちいかわ 人魚の島のひみつ ウエハース,1,ちいかわ,キャラクターカード,https://drive.google.com/thumbnail?id=1QB6An91wQ6cI5JiG6uZfwI7noaEdUzUC&sz=w800,,https://drive.google.com/thumbnail?id=1Nh-3eRGHO4v0S50r0XwBwyJfHaFK7OL3&sz=w800,,TRUE,https://drive.google.com/thumbnail?id=1Uz2xlx5KAXxhOJoreCx4dUBGCTJdZKgI&sz=w800,https://drive.google.com/thumbnail?id=1N8uBhiFxRp6jbOB8oMGtJ7mIwNm1ytFG&sz=w1600,
+映画ちいかわ 人魚の島のひみつ ウエハース,2,ハチワレ,キャラクターカード,https://drive.google.com/thumbnail?id=1xUAJ0cNUINRgoiMosvwraf1dE2gNfBX-&sz=w800,,https://drive.google.com/thumbnail?id=1BaBejhCnY9IWkf7PdXNMACprJW7dYY_S&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,3,うさぎ,キャラクターカード,https://drive.google.com/thumbnail?id=11AbvYAW8AM6p02aqPZyU8UJigAiIHvt3&sz=w800,,https://drive.google.com/thumbnail?id=1qHcsJVlJe1C3vQVTRusTar8GA5YtbFJ3&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,4,モモンガ,キャラクターカード,https://drive.google.com/thumbnail?id=1HJruhdNcqh_LjYS03D-Tl14CMhGOCV7z&sz=w800,,https://drive.google.com/thumbnail?id=11uyJHUbHvsantezigl3IWyAmMfuonwf6&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,5,ラッコ,キャラクターカード,,,https://drive.google.com/thumbnail?id=1Myrjuz39qXVIg-w48zZYPyEdhCR8infW&sz=w800,,FALSE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,6,くりまんじゅう,キャラクターカード,https://drive.google.com/thumbnail?id=18IkxDx7F4egGT43yZAdSAdHR5-JnT5gA&sz=w800,,https://drive.google.com/thumbnail?id=1j3r_PzRKZV6LoCGmJPASc6TD-Ee2C-hz&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,7,シーサー,キャラクターカード,https://drive.google.com/thumbnail?id=1mmDvFl_vtQc2LKCf75YOcDrD2pM9K8ZG&sz=w800,,https://drive.google.com/thumbnail?id=1Blxuh77AzyiKIQOUy3nZdZP6wweghVvQ&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,8,古本屋,キャラクターカード,https://drive.google.com/thumbnail?id=1H0AgN2QrJ7wRUVqpTxmAIzZXQy4GbQVO&sz=w800,,https://drive.google.com/thumbnail?id=1Jeb8c6MmURtFkf9VM6Z1vZOU_9KsSCjN&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,9,ひとは＆ふたば,キャラクターカード,https://drive.google.com/thumbnail?id=1fGML9qbRZnlrrAo6c3Q5qRU5fHsFLtYQ&sz=w800,,https://drive.google.com/thumbnail?id=1sx_Y6cpk4Tle8BoVNSnJgSYFW3xl35lF&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,10,島二郎,キャラクターカード,https://drive.google.com/thumbnail?id=1iWetbCd8rSX8LoF9xS4ST0R6nDujtZJr&sz=w800,,https://drive.google.com/thumbnail?id=1EGhcvYx_Xib3KkMoOlZ7l3hHhLCkrZsz&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,11,人魚,キャラクターカード,https://drive.google.com/thumbnail?id=1sqcaEq5-J4LwAo4wkln_9jV_GbaOU0kW&sz=w800,,https://drive.google.com/thumbnail?id=1zXJUeid3cLkIoeQk6F74onMHS65lLIsS&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,12,セイレーン,キャラクターカード,https://drive.google.com/thumbnail?id=1oxl0_5Iu4eBqnsn7csMcuVNMHBg9opRN&sz=w800,,https://drive.google.com/thumbnail?id=19gGqPROHkxYoZTe0-uR-wMJ1Nb15CjIV&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,13,くりまんじゅう＆シーサー,たびなかまカード,https://drive.google.com/thumbnail?id=1bZSBaklbtfFSBA0UUpJLBX3PKSxRBONm&sz=w800,,https://drive.google.com/thumbnail?id=1KpXxffDcqXH_F1z97SRdio-6uLMOUh93&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,14,ハチワレ＆うさぎ＆古本屋,たびなかまカード,https://drive.google.com/thumbnail?id=1mXJFxFkQ8AmXoEre1rI5jEMy164UbUKG&sz=w800,,https://drive.google.com/thumbnail?id=1eI1R11ujSJiGD8broUTXCOpZJoyZw067&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,15,ちいかわ＆モモンガ,たびなかまカード,https://drive.google.com/thumbnail?id=137vX_lURJNNS5SyLxPdhtjkE3kDrf7-c&sz=w800,,https://drive.google.com/thumbnail?id=15A2V2fFSg3XC47--Ajl6DGs2YTF8RhcV&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,16,ちいかわ＆島二郎,たびなかまカード,https://drive.google.com/thumbnail?id=1VgOoEF-cmXVll_Xrso0pvOkTGAi16zJE&sz=w800,,https://drive.google.com/thumbnail?id=1XyCOpps16Bzixu-Sod7czd4aUtHbsL6x&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,17,集合,レアカード,https://drive.google.com/thumbnail?id=1Jt-c9qLGKD-z10mvs_0SxjjdT0IGR1NX&sz=w800,,https://drive.google.com/thumbnail?id=1oj8dzeivDfCPw-iFITwlj88mwdX8sZax&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,18,セイレーン＆人魚,レアカード,,,https://drive.google.com/thumbnail?id=16MyWZNcTLqhraGoIafgZhAj08K4_Yoam&sz=w800,,FALSE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,19,ひとは＆ふたば,レアカード,https://drive.google.com/thumbnail?id=1qeNu-_olGnZ0FSF0oJD6mVdvv7dZp3xJ&sz=w800,,https://drive.google.com/thumbnail?id=1zH9z5QgtjOPYEkjeNTeEWXYIWjt8oDDm&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,20,ちいかわ＆ハチワレ,レアカード,https://drive.google.com/thumbnail?id=1qyQbXMq_mdUV310kyA6-KWjjc2d42LgF&sz=w800,,https://drive.google.com/thumbnail?id=1ZiCoKzU-VTc1IgDK1xIE7XhrDiSOxWPw&sz=w800,,TRUE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,21,ちいかわ＆ハチワレ＆うさぎ,ハイパーレアカード,,,https://drive.google.com/thumbnail?id=1jH-Y5KaYOAGAh5cN-x2EtY3ptHcbd5N5&sz=w800,,FALSE,,,
+映画ちいかわ 人魚の島のひみつ ウエハース,22,シークレット,シークレットカード,,,https://drive.google.com/thumbnail?id=1iJCrF-pEDdDjxAOTupZ6pQt89IeSL-KF&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,1,νガンダム,N,,,https://drive.google.com/thumbnail?id=1x477xDQ-yfmjnRT75TAxSLI65B2WPICc&sz=w800,,TRUE,https://drive.google.com/file/d/1XgB-gyHwtie6YLBwen6nyyjIAtDGBFoX/view?usp=drivesdk,,
+元祖SDガンダムスナック,2,ZZガンダム,N,https://drive.google.com/thumbnail?id=14c-ApQXqArx-n5wH1HC-j_OUUB3AKMxk&sz=w800,,https://drive.google.com/thumbnail?id=17bxIxmRelhp623AUHn8KeKYcE0UMvAoE&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,3,ガンダム,R,https://drive.google.com/thumbnail?id=1IkSNgoMnZVa5uieqLWWfe7mHVUcPsu-i&sz=w800,,https://drive.google.com/thumbnail?id=1nWFi8pNKActtJb9PG3h2YhDv7zJ99VyX&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,4,Zガンダム,N,https://drive.google.com/thumbnail?id=1z28HmB6LU89lELEewGyGuGqdMNLiZLTb&sz=w800,,https://drive.google.com/thumbnail?id=1sHkynKEJt6LYJxG3g5hHyecHKJh8wEqJ&sz=w800,https://drive.google.com/thumbnail?id=1TjBTncRDWZwbqKyUvMtFXUYVM_m7yJ4r&sz=w800,TRUE,,,
+元祖SDガンダムスナック,5,パーフェクトジオング,N,,,https://drive.google.com/thumbnail?id=1HwJVEGosy-8AK2MDVTwW4Pq7mprzTCq2&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,6,シャア専用ズゴック,N,,,https://drive.google.com/thumbnail?id=1ue8TdgbLtgX9zZY1SLv0qly2rmIEVe6Q&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,7,ドム,N,https://drive.google.com/thumbnail?id=1p1dEdBI4S3WWYnARe7i7UuAQnP8-F4-M&sz=w800,,https://drive.google.com/thumbnail?id=1WFn3x4MUVRxO00CVR-DMBcuxIlMP1lKu&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,8,ガンダムMk-II(エゥーゴ仕様),N,https://drive.google.com/thumbnail?id=1jmUaYXa7q6vq_Y9HRsLEx5x9NoGnayFt&sz=w800,,https://drive.google.com/thumbnail?id=1ddh0HMrdY-aAGB5u-yrC3K8vgZWCHPcL&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,9,ガンダムMk-II(ティターンズ仕様),N,https://drive.google.com/thumbnail?id=1O2hTgGe3kW-qK0nyrHXOL5YQOtpmWHL7&sz=w800,,https://drive.google.com/thumbnail?id=1IoLEgDijEYbfSfa97F65Wox10hALcpd2&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,10,百式改,R,,,https://drive.google.com/thumbnail?id=1HLYfFuOYUPuLYVnDKnFjrhoz0AUy_xvT&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,11,武者精太頑駄無,N,https://drive.google.com/thumbnail?id=1tgvbc1COe9cDZe-IbHEmV0SK30f4JZPe&sz=w800,,https://drive.google.com/thumbnail?id=1aE0zuD_r1obVireIGe5s8VAYsBzHLf_y&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,12,リック・ディアス,N,https://drive.google.com/thumbnail?id=1MC8BKu7lFUClcy9oLZb9e_uT8DbFiPZD&sz=w800,,https://drive.google.com/thumbnail?id=1AIKtbqp8kQmGl_S-EFPASL5BWbQ_m1Ra&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,13,武者頑駄無,R,https://drive.google.com/thumbnail?id=1PvVqtvYfgP3a0C1yffTK3K6lfoluHkX0&sz=w800,,https://drive.google.com/thumbnail?id=1KUKc9xGLMLTC0kmIQ4AnCc3EtiwtNCZK&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,14,サイコ・ガンダム,N,https://drive.google.com/thumbnail?id=1p_yvznG8nlLemUlMBoDBn-6wBMveUamB&sz=w800,,https://drive.google.com/thumbnail?id=1UKAa5ad2Ue8FGeCm2Opel2bzzPZ24ODA&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,15,武者頑駄無摩亜屈,N,https://drive.google.com/thumbnail?id=1BGXxvwamWgdsBreqyv0vx9eeisSoJBK2&sz=w800,,https://drive.google.com/thumbnail?id=1GejtBv4Wnee5vR1mn9770qSDDyxzvbMx&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,16,コマンドガンダム,N,https://drive.google.com/thumbnail?id=1g17-i-niQCDYHbKa9XlOE1R97Dx6j9Ki&sz=w800,,https://drive.google.com/thumbnail?id=1j63Q0i3IwRlxSD62K_FGaBFpHXTilOaZ&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,17,にせガンダム(ザク偽装型),N,https://drive.google.com/thumbnail?id=1XaIAzlNFU7CkM7YypxC9ItLIf2ZLsVjY&sz=w800,,https://drive.google.com/thumbnail?id=134ht1BZCfIU6HrGTZCnyNe8xD-uqrPZP&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,18,シャア専用ゲルググ,N,https://drive.google.com/thumbnail?id=1ZzGU9qQTMSwu70ddofz9NRIFLw017UY-&sz=w800,,https://drive.google.com/thumbnail?id=10CUOVmimbENF_4klMpgFnIjZL59imYua&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,19,武者仁宇頑駄無,N,https://drive.google.com/thumbnail?id=1IkSNgoMnZVa5uieqLWWfe7mHVUcPsu-i&sz=w800,,https://drive.google.com/thumbnail?id=1UJOf6_W0G_6eZqby4xufonWgPeSYXkdB&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,20,武者駄舞留精太頑駄無,N,,,https://drive.google.com/thumbnail?id=1bJorh7w9uAz6FVDlBrbELsUWFJqgLZhk&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,21,ガンダムNT-1,N,https://drive.google.com/thumbnail?id=1hZuIuc5fbUcaMcj-KlkFHxJumBd3PNEN&sz=w800,,https://drive.google.com/thumbnail?id=1PYPFpjsIHHtBtIFbVS_DyqBo6qDlFlvC&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,22,サザビー,N,https://drive.google.com/thumbnail?id=18aITLvL1KgR6_yBQLJ9C8x4RCrVRfkk_&sz=w800,,https://drive.google.com/thumbnail?id=1hEt7ljSpvlYyC89oBkhutL9_VCyAxfFe&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,23,ケンプファー,N,https://drive.google.com/thumbnail?id=1cQ3KQ6dK6MY-MM_5GcF5ObzLt-4LV9aQ&sz=w800,,https://drive.google.com/thumbnail?id=1RgTQhSaU46iG92djCcCmw2N53ZzANVQu&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,24,騎士ガンダム,N,https://drive.google.com/thumbnail?id=1lS6to3J2rOrOBP4kJIuuGBNcaKV1mGp6&sz=w800,,https://drive.google.com/thumbnail?id=19ug6PQLrP4la4HpZBvu-2jOYPllzEbMK&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,25,ガンタンク,N,https://drive.google.com/thumbnail?id=1damzhV3W9DgMK_pYvV49iA-jVD5LEN-0&sz=w800,,https://drive.google.com/thumbnail?id=1sHb-kTP9KF_vnQtrHSjnJ2uCKoHspvo9&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,26,キュベレイ,N,https://drive.google.com/thumbnail?id=1BYi0HHeZv41LACo79JldGx4ILmq9Nty1&sz=w800,,https://drive.google.com/thumbnail?id=1_-y_SntBTb_c8KIc3NAOtmVckKrd7jzc&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,27,騎士スペリオルドラゴン,R,,,https://drive.google.com/thumbnail?id=1Hm7c2BQYMRdKyd0ncWWwxOAkJKK_Uxqe&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,28,パーフェクトガンダム,N,https://drive.google.com/thumbnail?id=1Ksha2Df2ZEH903Mf66UYTMfE0xgl0LIc&sz=w800,,https://drive.google.com/thumbnail?id=1PKNNxU56BjS1WnE0yjlY5TsGtf3Eh6UE&sz=w800,,TRUE,,,
+元祖SDガンダムスナック,29,フルアーマーガンダム,N,,,https://drive.google.com/thumbnail?id=1NpRMvY0XL8gU1PTgnn5z0i870SVA_fFe&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,30,ガンキャノン,N,,,https://drive.google.com/thumbnail?id=10IR9dFdm8_1V4fyBGcdpGl448YYETWUr&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,31,キュベレイMk-II(エルピー・プル専用機),N,,,https://drive.google.com/thumbnail?id=1pTqwIjvGful_VcAZwqwtqGxuNi0j_8WI&sz=w800,,FALSE,,,
+元祖SDガンダムスナック,32,Hi-νガンダム,R,https://drive.google.com/thumbnail?id=1iIsClVKHj5IaonCF-B2NiK--m_Z3ZC4n&sz=w800,,https://drive.google.com/thumbnail?id=1v3PEU584sBo75ui_kHVSSpPe5D996_O2&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,33,ヤクト・ドーガ（ギュネイ・ガス専用機）,N,,,https://drive.google.com/thumbnail?id=1IxTvBS3PBtbcvW5Yc9uwxR-id0gsc1oA&sz=w800,,FALSE,https://drive.google.com/thumbnail?id=1sfobF6MQfYrGVuTRHSK6zPayfbqR6PXi&sz=w800,,
+元祖SDガンダムスナック2,34,ザクIII,N,,,https://drive.google.com/thumbnail?id=1DforVqBXeLshpd3YtqdbrVkQwir4s8mz&sz=w800,,FALSE,,,
+元祖SDガンダムスナック2,35,量産型ズゴック,N,https://drive.google.com/thumbnail?id=10oRXORNd722MWwMl5avOgVwSbvii-ccd&sz=w800,,https://drive.google.com/thumbnail?id=1P4Fr51Hkk53x2lDWWH63MZcLRJ-fqipd&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,36,ヤクト・ドーガ（クェス・エア専用機）,N,https://drive.google.com/thumbnail?id=1prMSf_ENxeyhW899XBgEYa38IEIvvLe5&sz=w800,,https://drive.google.com/thumbnail?id=1cpiKzjZDXazvkRo9iIORthmwuQLIAaPX&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,37,武者精太頑駄無 風雲騎馬スペシャル,N,https://drive.google.com/thumbnail?id=1T7z_sfDFpfUlPkT37nwK4rClweGzee_Z&sz=w800,,https://drive.google.com/thumbnail?id=19xFkSQhkqI2rcnG4EL93FqD6OHef0Aqt&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,38,スーパーガンダム,N,https://drive.google.com/thumbnail?id=1KKt5ZvJ08XCX4mzABpRZ4LUa43SAACWd&sz=w800,,https://drive.google.com/thumbnail?id=14Ihsoa-jFsr9DtVQhSnMu-c6iwMoIw7V&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,39,ホワイトベース,N,https://drive.google.com/thumbnail?id=1aqIQtwncL_c2Bd9U7vN6XR8djpHFcUj5&sz=w800,,https://drive.google.com/thumbnail?id=1Vni3s6FPLoi-LHLSzULsEKUmgc3GvnEc&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,40,璽威武装,N,https://drive.google.com/thumbnail?id=1VhbkZu9xGrWlWY0FATIQ-b7VTbjBsjeu&sz=w800,,https://drive.google.com/thumbnail?id=1SXlsJ01EoHUMGUOcnAiFqFzvxSCfDIhx&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,41,モンスターブラックドラゴン,N,https://drive.google.com/thumbnail?id=10ZyiVmrrodiUWORBIn9W6UiztCuMRolE&sz=w800,,https://drive.google.com/thumbnail?id=1t0uU2eMoknw9dUA3n54selsikNLOw0ue&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,42,農丸頑駄無,N,https://drive.google.com/thumbnail?id=1MdhvHezHzkMVpYGz_3ImET5gEhgDMNmj&sz=w800,,https://drive.google.com/thumbnail?id=1w1cp4vpNf5LplTHruikUUQG-X1fVJdAw&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,43,νガンダム（ヘヴィウェポンシステム）,N,https://drive.google.com/thumbnail?id=10eqCG5bWuLuzxJ5rRV-vVn4lQVgEr5w9&sz=w800,,https://drive.google.com/thumbnail?id=14gJzWw6xdVPXAW9QusbtqngR2PoVAbW3&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,44,騎士百式,N,,,https://drive.google.com/thumbnail?id=1z10pjl2G9bvN_EshwcpgI_MQEagYw9Dl&sz=w800,,FALSE,,,
+元祖SDガンダムスナック2,45,頑駄無大将軍,R,https://drive.google.com/thumbnail?id=1yGgtb444ngxqoFHq8Sn8hEA8_DSqouor&sz=w800,,https://drive.google.com/thumbnail?id=1YdkYPTzuTrCvEc6NWtFrF9rpHxiEvxK_&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,46,武者斎胡頑駄無,N,https://drive.google.com/thumbnail?id=1bn_NZE0D55ZBEd0BDI8_zYPSZ5_YoHnT&sz=w800,,https://drive.google.com/thumbnail?id=1Rzk1QPpm-GiyDSbX78i3NxV8O2uOTv77&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,47,フルアーマー騎士ガンダム,N,,,https://drive.google.com/thumbnail?id=14CEEovEjWQoRpAdlnSR6hPMMLFtcBk_T&sz=w800,,FALSE,,,
+元祖SDガンダムスナック2,48,キャプテンガンダム,N,https://drive.google.com/thumbnail?id=1WwVRYbeYEFEsGU8YLiVoaYd3ek33o85Y&sz=w800,,https://drive.google.com/thumbnail?id=1lp33k27ypjwtOxnQgpENBhggJDwa40RI&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,49,闇皇帝,N,https://drive.google.com/thumbnail?id=1jNFp3SLGpoasTQHzAEvY-dDSpc_0SinS&sz=w800,,https://drive.google.com/thumbnail?id=1inEsird_g9Qzk4IyC29LZE2oCyo3VjoO&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,50,キュベレイMk-II（プルツー専用機）,N,,,https://drive.google.com/thumbnail?id=13gzZ45cK_GpzmZh2P7U7BCQT7qvi4jrA&sz=w800,,FALSE,,,
+元祖SDガンダムスナック2,51,フルアーマーZZガンダム,N,https://drive.google.com/thumbnail?id=1bViP0zahj5rZHNrHnrnmi-dfjSQGPiLn&sz=w800,,https://drive.google.com/thumbnail?id=1DxpBsqK42PKYULvtSGZXDCknZnQ91Yph&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,52,ガンダムF91,N,https://drive.google.com/thumbnail?id=15WAuV5wXz-FF8oAT8-vdUYgqBAv4yY_L&sz=w800,,https://drive.google.com/thumbnail?id=1fUrnsauwJuADKHTavZOfZgAANF3hHPPz&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,53,Vコマンドガンダム,N,,,https://drive.google.com/thumbnail?id=1kasV5EdXt0fxv4TpYvRUbwj54TmmGdmz&sz=w800,,FALSE,,,
+元祖SDガンダムスナック2,54,スペリオルドラゴンEX,R,https://drive.google.com/thumbnail?id=1l3f2tnbMGGUR3Hy0wQwTL_GQKjhqsclM&sz=w800,,https://drive.google.com/thumbnail?id=1pkNrl-9371w_0CJBOijtwuJdWbZTxYGa&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,55,ガンダム試作1号機フルバーニアン,N,https://drive.google.com/thumbnail?id=1E-DH3OL3AYnU2eLZSY5wj-RWfc_QsESW&sz=w800,,https://drive.google.com/thumbnail?id=14B6o6PEOlfuYpRYisxNnN39SApq5zB8b&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,56,ガンダム試作2号機（サイサリス）,N,https://drive.google.com/thumbnail?id=11P2L9DA3MD-n3BJI9d4m-D6gSBwMwwtp&sz=w800,,https://drive.google.com/thumbnail?id=1IPhGhv6BDk1vLi9DD-nOJJoKhLzT0ZL7&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,57,Vダッシュガンダム,N,https://drive.google.com/thumbnail?id=1vqHVk-rB1Kj3XTtlO-qOP0M26ecdS3Pi&sz=w800,,https://drive.google.com/thumbnail?id=12Cwdj9qfJ_GwI-G4IuYWJNWBsfVBXavB&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,58,V2アサルトバスターガンダム,N,https://drive.google.com/thumbnail?id=1j_KQtZHKLUNXc4WSm_nsOY6uIdoqJfVZ&sz=w800,,https://drive.google.com/thumbnail?id=16650ZHND9OhggWil34-MppinIfCxRckY&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,59,シャイニングガンダム,N,https://drive.google.com/thumbnail?id=1hvnXdtHVcvX8r1HffOeV2XHwIBxagL79&sz=w800,,https://drive.google.com/thumbnail?id=155lWyN7XxEu8enpwTnYR2eLXT5-9Ysv6&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,60,ガンダムシュピーゲル,N,https://drive.google.com/thumbnail?id=1M7pX4fMNdzGzhLx7sDehcFsSsglrdP0k&sz=w800,,https://drive.google.com/thumbnail?id=1Ijc_uheE3MYtkaBMkzKK-sr0Q-2KpD1j&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,61,真ハイパーモード ゴッドガンダム,R,https://drive.google.com/thumbnail?id=1zS5sO-RK6CJXWEIBOfvunCkGxbWQiTpE&sz=w800,,https://drive.google.com/thumbnail?id=1KfEr7UleT-db2rvgtk-W4EUT8BiEmUkf&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,62,ハイパーモード マスターガンダム,R,https://drive.google.com/thumbnail?id=1HYj6lQvQ6YgRHR5SgDZxoLgaraIlxojC&sz=w800,,https://drive.google.com/thumbnail?id=1hwaMNFL-NZ9LE7gE161xZY89ylklSs2g&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,63,Ξガンダム,R,https://drive.google.com/thumbnail?id=1fkUFqohTd1vT9d4APZpQta20LFMXssye&sz=w800,,https://drive.google.com/thumbnail?id=1dwNQkh4U42S82d9H6AOx18FPuNcXEYWc&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,64,ペーネロペー,R,https://drive.google.com/thumbnail?id=1-sPoi1oYZ89Yi4BIq8nvSUI5ubp_DDoW&sz=w800,,https://drive.google.com/thumbnail?id=1zsen_wTbegK-WhMvsOylXLMQH_WCGxfR&sz=w800,,TRUE,,,
+元祖SDガンダムスナック2,65,シークレット（Ξガンダム）,R,https://drive.google.com/thumbnail?id=1-xX0f1Sst7wBawYyHZ2hj0-le81hFYyv&sz=w800,,https://drive.google.com/thumbnail?id=1EFSJtcZGH3p_vb24k6VxXfW0emBi6KL9&sz=w800,,TRUE,,,
+勝利の女神：NIKKE ウエハース,1,マリアン,キャラクターカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/Vpw/000000380911NvsNWOQ3ceMMKPsSJzQSTNwwWYhLUC0reVpw.jpg,,FALSE
+勝利の女神：NIKKE ウエハース,2,ラピ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,3,アニス,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,4,ネオン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,5,N102,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,6,プリバティ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,7,ポリ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,8,ディーゼル,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,9,ギロチン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,10,ヘルム,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,11,ユニ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,12,リター,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,13,ドレイク,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,14,ラプラス,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,15,アリス,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,16,ルピー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,17,サクラ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,18,バイパー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,19,ビスケット,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,20,スノーホワイト,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,21,イサベル,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,22,ラプンツェル,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,23,紅蓮,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,24,ハラン,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,25,ノア,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース,26,キービジュアル,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,1,紅蓮＆リリーバイス(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/qdS/000000404095WKKO0yx8rrY5KXz97Obcg1x6ZJXpD43bCqdS.jpg,,FALSE
+勝利の女神：NIKKE ウエハース2,2,MIRACLE SNOW,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,3,Maid in Valentine,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,4,DAZZLING CUPID,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,5,NEVERLAND,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,6,アンカー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,7,ミハラ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,8,エマ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,9,マスト,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,10,マルチャーナ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,11,プリバティ：アンカインド・メイド,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,12,マクスウェル,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,13,センチ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,14,ペッパー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,15,アドミ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,16,ジャッカル,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,17,エクシア,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,18,ブラン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,19,ノワール,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,20,ドラー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,21,ノイズ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,22,ドロシー,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,23,モダニア,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,24,レッドフード,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,25,スノーホワイト：イノセントデイズ,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,26,紅蓮：ブラックシャドウ,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,27,クラウン,シークレット（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース2,28,シフティー,シークレット（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,1,ドロシー＆ピナ(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/RVI/000000426455QGmY9RnYx15nCYyXt7HG7Kpd4WU7dap8pRVI.jpg,,FALSE
+勝利の女神：NIKKE ウエハース3,2,Golden Coin Rush,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,3,One More Time,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,4,Juvenile Days,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,5,ボリューム,スキルカットカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,6,クラウン,スキルカットカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,7,ベロータ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,8,ネヴェ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,9,ウンファ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,10,メイデン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,11,D：キラーワイフ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,12,クロウ,キャラクターカード,,,,,TRUE,,,FALSE
+勝利の女神：NIKKE ウエハース3,13,ギルティ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,14,トーブ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,15,エレグ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,16,トロニー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,17,シュガー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,18,ヤン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,19,ロザンナ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,20,モラン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,21,リター(キュートサンフラワー),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,22,ナガ(エレガンスデート),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,23,ティア(ラブリーデート),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,24,ブラン(ホワイトラビット),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,25,ノワール(ブラックラビット),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,26,モダニア(セカンド・アフェクション),キャラクターカード（金色箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,27,グレイブ,シークレット,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース3,28,シンデレラ,シークレット,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,1,シンデレラ＆グレイブ(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/jwk/000000453423HA8k0ptl290e8pEz1RWihCeoNpUMcDXaXjwk.jpg,,FALSE
+勝利の女神：NIKKE ウエハース4,2,License to Kill,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,3,DARK HERO,ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,4,サクラ：ブルーム・イン・サマー,スキルカットカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,5,紅蓮：ブラックシャドウ ロンギングフラワー,スキルカットカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,6,ソリン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,7,ツバイ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,8,ファントム,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,9,マスト：ロマンチックメイド,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,10,アイン,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,11,フローラ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,12,モリー,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,13,ネロ,キャラクターカード,,,,,TRUE,,,FALSE
+勝利の女神：NIKKE ウエハース4,14,レオナ,キャラクターカード,,,,,TRUE,,,FALSE
+勝利の女神：NIKKE ウエハース4,15,ルージュ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,16,ブレッディ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,17,ギロチン：ダークトレーサー,キャラクターカード（箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,18,ルピー：ラグジュアリーラビット,キャラクターカード（箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,19,レッドフード：ナンセンスレッド,キャラクターカード（箔押し仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,20,ニヒリスター,キャラクターカード（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,21,ラプンツェル：ピュアグレイス,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,22,リトルマーメイド,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,23,ラピ：レッドフード,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,24,ドロシー：セレンディピティ,キャラクターカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,25,アリス(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,26,モダニア(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,27,ヘルム,シークレット（ホロニス仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース4,28,バイパー,シークレット（ホロニス金箔仕様）,,,,,FALSE,,,FALSE
+勝利の女神：NIKKE ウエハース５,1,ラピ：レッドフード＆レッドフード(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,https://www.bandai.co.jp/candy/published/bnc_files/product/xpN/000000478221tcuhKfhQkk21IxYb3SJjZjviaLzJF9wU5xpN.jpg,,TRUE
+勝利の女神：NIKKE ウエハース５,2,SECRET GARDEN,ビジュアルカード,,,https://lh3.googleusercontent.com/d/1vJ74siE9RzIOPmeCOd1aqNKnMzcy2Jp1,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,3,ARK GUARDIAN,ビジュアルカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,4,クエンシー：エスケープクイーン,スキルカットカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,5,デルタ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,6,シグナル,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,7,アンカー：イノセントメイド,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,8,アルカナ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,9,エマ：タクティカル・アップ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,10,ベスティー：タクティカル・アップ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,11,ウンファ：タクティカル・アップ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,12,ソリン：フロストチケット,キャラクターカード,https://lh3.googleusercontent.com/d/1guIEUZyezkeRQR-AamE-k0DQY664hzWW,,,,TRUE,,,TRUE
+勝利の女神：NIKKE ウエハース５,13,マナ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,14,プリム,キャラクターカード,,,https://lh3.googleusercontent.com/d/1Y661uGma0_GnSEarnelOxIQehNyxfpf5,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,15,ミルク,キャラクターカード,https://lh3.googleusercontent.com/d/1m7g5cSB-7AYzPiQQmSDE2J9UUJUFIgby,,,,TRUE,,,TRUE
+勝利の女神：NIKKE ウエハース５,16,プリッド：サイレントトラック,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,17,ディーゼル：ウィンタースイーツ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,18,ナユタ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,19,リバーレリオ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,20,チャイム,キャラクターカード,https://lh3.googleusercontent.com/d/1xlNEqEcsCx0tWRsLH22sh-LqiEO8nisp,,,,TRUE,,,TRUE
+勝利の女神：NIKKE ウエハース５,21,スノーホワイト：ヘビーアームズ,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,22,ジャッカル クラスの問題児,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,23,ミハラ：ボンディングチェーン・ペインイーター,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,24,リトルマーメイド アビスフラワー,キャラクターカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,25,アニス：スター(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,26,紅蓮：ブラックシャドウ ロンギングフラワー(ウエハースオリジナルイラスト),ビジュアルカード,,,,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,27,ドレイク,シークレット（箔押し仕様）,,,https://lh3.googleusercontent.com/d/1yFUhJh0EjPVM5XDg08qxmJ7LANscEaAg,,FALSE,,,TRUE
+勝利の女神：NIKKE ウエハース５,28,ラプラス,シークレット（箔押し仕様）,,,,,FALSE,,,TRUE`;
+
+
+
+
+        function fetchGvizJsonp(spreadsheetId) {
+      return new Promise((resolve, reject) => {
+        const callbackName = "__gviz_cb_" + Math.floor(Math.random() * 10000000);
+        const script = document.createElement("script");
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("スプレッドシート通信タイムアウト (10秒)"));
+        }, 2500);
+
+
+        function cleanup() {
+          clearTimeout(timeout);
+          if (script.parentNode) script.parentNode.removeChild(script);
+          try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+        }
+
+
+        window[callbackName] = function(data) {
+          cleanup();
+          if (!data || !data.table || !data.table.rows) {
+            reject(new Error("スプレッドシートの構造が不正です"));
+            return;
+          }
+          const rows = [];
+          const tRows = data.table.rows;
+          for (let i = 0; i < tRows.length; i++) {
+            const row = tRows[i];
+            const r_vals = [];
+            const c_arr = row.c || [];
+            for (let j = 0; j < c_arr.length; j++) {
+              const col = c_arr[j];
+              if (col === null || col === undefined) {
+                r_vals.push("");
+              } else {
+                const val = (col.f !== undefined && col.f !== null) ? col.f : col.v;
+                r_vals.push((val !== undefined && val !== null) ? String(val).trim() : "");
+              }
+            }
+            if (r_vals.length >= 4 && r_vals[0]) {
+              rows.push(r_vals);
+            }
+          }
+          resolve(rows);
+        };
+
+
+        script.src = "https://docs.google.com/spreadsheets/d/" + spreadsheetId + "/gviz/tq?tqx=responseHandler:" + callbackName;
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("Googleスプレッドシートへのアクセスに失敗しました (非公開またはID不正)"));
+        };
+        document.body.appendChild(script);
+      });
+    }
+
+
+    async function loadData() {
+      try {
+        updateSettingsDisplay();
+        applyUiStyle();
+        if (viewModeSelect) viewModeSelect.value = viewMode;
+
+        // 1. サーバーから安全に注入されたデータがあれば最優先で展開
+        let serverRows = null;
+        try {
+          const jsonEl = document.getElementById("serverDataJson");
+          if (jsonEl && jsonEl.textContent) {
+            const raw = jsonEl.textContent.trim();
+            if (raw && raw !== "[]" && !raw.startsWith("<?")) {
+              serverRows = JSON.parse(raw);
+            }
+          }
+        } catch (je) {
+          console.warn("Server JSON parse error:", je);
+        }
+
+        if (serverRows && Array.isArray(serverRows) && serverRows.length > 0) {
+          if (processParsedRows(serverRows)) {
+            console.log("Rendered from server injected rows successfully!");
+            return;
+          }
+        }
+
+        // 2. 内蔵マスターデータ（全14シリーズ・485枚）で即時描画
+        if (typeof EMBEDDED_CSV_FALLBACK !== "undefined") {
+          processCsvText(EMBEDDED_CSV_FALLBACK);
+          console.log("Rendered from EMBEDDED_CSV_FALLBACK successfully!");
+        }
+      } catch (err) {
+        alert("loadData 実行時エラー: " + err.message + "\n" + err.stack);
+      }
+
+      // バックグラウンドで最新データを同期（GAS側に関数がなくても100%安全にフォールバック）
+      let gasSyncStarted = false;
+      if (typeof google !== "undefined" && google.script && google.script.run && typeof google.script.run.getBinderData === "function") {
+        try {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              if (res && res.success && res.rows && res.rows.length > 0) {
+                processParsedRows(res.rows);
+              } else {
+                fallbackLoadExternal();
+              }
+            })
+            .withFailureHandler(function(err) {
+              console.warn("GAS getBinderData not available, falling back:", err);
+              fallbackLoadExternal();
+            })
+            .getBinderData();
+          gasSyncStarted = true;
+        } catch (gasErr) {
+          gasSyncStarted = false;
+        }
+      }
+
+      if (!gasSyncStarted) {
+        fallbackLoadExternal();
+      }
+    }
+
+    async function fallbackLoadExternal() {
+      const id = getCurrentSpreadsheetId();
+      let loaded = false;
+
+      // 1. Google Visualization API (JSONP) による同期
+      try {
+        const rows = await fetchGvizJsonp(id);
+        if (processParsedRows(rows)) {
+          loaded = true;
+        }
+      } catch (jsonpErr) {
+        console.warn("GViz JSONP sync error:", jsonpErr.message);
+      }
+
+      // 2. 通常fetch
+      if (!loaded) {
+        const candidateUrls = [
+          "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv",
+          "https://docs.google.com/spreadsheets/d/" + id + "/export?format=csv"
+        ];
+        for (let i = 0; i < candidateUrls.length; i++) {
+          try {
+            const res = await fetch(candidateUrls[i]);
+            if (res.ok) {
+              const csvText = await res.text();
+              if (processCsvText(csvText)) {
+                loaded = true;
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // 3. 最終フォールバック
+      if (!loaded && allCards.length === 0) {
+        if (typeof EMBEDDED_CSV_FALLBACK !== "undefined") {
+          processCsvText(EMBEDDED_CSV_FALLBACK);
+        }
+      }
+    }
+
+
+    function getCardImage(card) {
+      if (!card) return "";
+      // 1. 所持状態で所持写真があれば表示
+      if (card.isOwned && card.ownedImg) return card.ownedImg;
+      // 2. 未所持公式個別画像があれば表示
+      if (!card.isOwned && card.unownedImg) return card.unownedImg;
+      // 3. その他、所持画像または未所持画像があれば表示
+      if (card.ownedImg) return card.ownedImg;
+      if (card.unownedImg) return card.unownedImg;
+      // 4. 画像登録が何もない場合：各シリーズのロゴ画像を表示！
+      const logo = card.logo || (card.series && loadedSeriesLogos[card.series]) || (card.series && DEFAULT_SERIES_LOGOS[card.series]) || "";
+      if (logo) return logo;
+      // 5. 万一ロゴも無い場合のフォールバック（SVGダミーカード）
+      return makeDummyCardDataUrl(card);
+    }
+
+
+    function onSeriesChange() {
+      currentSeries = seriesSelect.value;
+      if (currentSeries) {
+        safeSetItem(STORAGE_KEY_SERIES, currentSeries);
+      }
+      applyBackground();
+
+
+      const query = String(searchInput.value || "").trim().toLowerCase();
+      currentCards = allCards.filter(c => {
+        if (c.series !== currentSeries) return false;
+        if (!query) return true;
+        const nameMatch = String(c.name).toLowerCase().indexOf(query) !== -1;
+        const numMatch = String(c.number).indexOf(query) !== -1;
+        return nameMatch || numMatch;
+      });
+
+
+      currentPage = 1;
+      render();
+    }
+
+
+    if (viewModeSelect) {
+      if (viewModeSelect) viewModeSelect.onchange = () => {
+        viewMode = viewModeSelect.value;
+        safeSetItem(STORAGE_KEY_VIEW, viewMode);
+        currentPage = 1;
+        render();
+      };
+    }
+
+
+    function render() {
+      const ownedCount = currentCards.filter(c => c.isOwned).length;
+      statsText.textContent = "所持: " + ownedCount + " / " + currentCards.length + " 枚";
+
+
+      if (viewMode === "list") {
+        binderArea.style.display = "none";
+        scrollGalleryContainer.classList.remove("active");
+        listViewContainer.classList.add("active");
+        renderListView();
+      } else if (viewMode === "scroll") {
+        binderArea.style.display = "none";
+        listViewContainer.classList.remove("active");
+        scrollGalleryContainer.classList.add("active");
+        renderScrollGallery();
+      } else {
+        listViewContainer.classList.remove("active");
+        scrollGalleryContainer.classList.remove("active");
+        binderArea.style.display = "flex";
+        renderGridView();
+      }
+    }
+
+
+    function renderGridView() {
+      let pageSize = 4;
+      if (viewMode === "3x3") pageSize = 9;
+      else if (viewMode === "2x3") pageSize = 6;
+      else pageSize = 4;
+
+
+      cardGrid.className = "grid-" + viewMode;
+
+
+      const totalPages = Math.ceil(currentCards.length / pageSize) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      pageBadge.textContent = "Page " + currentPage + " / " + totalPages;
+
+
+      cardGrid.innerHTML = "";
+      const startIndex = (currentPage - 1) * pageSize;
+      const pageCards = currentCards.slice(startIndex, startIndex + pageSize);
+
+
+      for (let i = 0; i < pageSize; i++) {
+        const slot = document.createElement("div");
+        slot.className = "card-slot";
+        const card = pageCards.slice(i).shift();
+
+
+        if (card) {
+          if (!card.isOwned) slot.classList.add("unowned");
+          const imgSrc = getCardImage(card);
+          if (imgSrc) {
+            const img = document.createElement("img");
+            img.src = imgSrc;
+            const isLogo = (imgSrc === card.logo) || 
+                           (card.series && (imgSrc === loadedSeriesLogos[card.series] || imgSrc === DEFAULT_SERIES_LOGOS[card.series]));
+            if (isLogo) {
+              img.classList.add("placeholder-logo");
+              slot.classList.add("has-placeholder-logo");
+            }
+            slot.appendChild(img);
+          }
+
+
+          const overlay = document.createElement("div");
+          overlay.className = "card-overlay";
+          overlay.innerHTML = "<span class=\"card-num\">#" + card.number + "</span><span class=\"card-name-text\">" + card.name + "</span>";
+          slot.appendChild(overlay);
+
+
+          slot.onclick = () => openModal(card);
+        }
+        cardGrid.appendChild(slot);
+      }
+    }
+
+
+    function renderScrollGallery() {
+      scrollGalleryGrid.innerHTML = "";
+      currentCards.forEach(card => {
+        const slot = document.createElement("div");
+        slot.className = "card-slot";
+        if (!card.isOwned) slot.classList.add("unowned");
+
+
+        const imgSrc = getCardImage(card);
+        if (imgSrc) {
+          const img = document.createElement("img");
+          img.src = imgSrc;
+          img.loading = "lazy";
+          const isLogo = (imgSrc === card.logo) || 
+                         (card.series && (imgSrc === loadedSeriesLogos[card.series] || imgSrc === DEFAULT_SERIES_LOGOS[card.series]));
+          if (isLogo) {
+            img.classList.add("placeholder-logo");
+            slot.classList.add("has-placeholder-logo");
+          }
+          slot.appendChild(img);
+        }
+
+
+        const overlay = document.createElement("div");
+        overlay.className = "card-overlay";
+        overlay.innerHTML = "<span class=\"card-num\">#" + card.number + "</span><span class=\"card-name-text\">" + card.name + "</span>";
+        slot.appendChild(overlay);
+
+
+        slot.onclick = () => openModal(card);
+        scrollGalleryGrid.appendChild(slot);
+      });
+    }
+
+
+    function renderListView() {
+      listTableBody.innerHTML = "";
+      currentCards.forEach(card => {
+        const tr = document.createElement("tr");
+        const statusHtml = card.isOwned
+          ? "<span style=\"color:#34d399; font-weight:bold;\">✔ 所持</span>"
+          : "<span style=\"color:#777;\">未所持</span>";
+
+
+        tr.innerHTML = "<td>#" + card.number + "</td>" +
+                       "<td>" + card.name + "</td>" +
+                       "<td>" + (card.rarity || "-") + "</td>" +
+                       "<td>" + statusHtml + "</td>";
+
+
+        tr.onclick = () => openModal(card);
+        listTableBody.appendChild(tr);
+      });
+    }
+
+
+    function applySeriesBackDesign(card) {
+      const s = card.series.toLowerCase();
+      if (s.includes("nikke") || s.includes("ガンガール")) {
+        backIcon.textContent = "⚔️";
+        backTitle.textContent = "NIKKE";
+        backSub.textContent = "GUN GIRL METAL CARD";
+        cardBackFace.style.background = "linear-gradient(135deg, #252733 0%, #12131a 50%, #252733 100%)";
+        cardBackFace.style.borderColor = "#6366f1";
+      } else if (s.includes("ガンダム")) {
+        backIcon.textContent = "🛡️";
+        backTitle.textContent = "GUNDAM";
+        backSub.textContent = "MOBILE SUIT CARD COLLECTION";
+        cardBackFace.style.background = "linear-gradient(135deg, #1b2234 0%, #0c0f17 50%, #1b2234 100%)";
+        cardBackFace.style.borderColor = "#38bdf8";
+      } else if (s.includes("ちいかわ")) {
+        backIcon.textContent = "⭐";
+        backTitle.textContent = "CHIIKAWA";
+        backSub.textContent = "LUCKY CARD COLLECTION";
+        cardBackFace.style.background = "linear-gradient(135deg, #2f2334 0%, #16101c 50%, #2f2334 100%)";
+        cardBackFace.style.borderColor = "#f472b6";
+      } else {
+        backIcon.textContent = "🎴";
+        backTitle.textContent = "CARD BINDER";
+        backSub.textContent = "DIGITAL COLLECTION";
+        cardBackFace.style.background = "linear-gradient(135deg, #252733 0%, #12131a 50%, #252733 100%)";
+        cardBackFace.style.borderColor = "#585b70";
+      }
+      backSpecPlate.textContent = card.series + " #" + card.number + " " + card.name;
+    }
+
+
+    function applyCardEffect() {
+      const effect = safeGetItem(STORAGE_KEY_CARD_EFFECT) || "none";
+      if (cardEffectSelect) cardEffectSelect.value = effect;
+      ["effect-holo", "effect-rainbow", "effect-cyber", "effect-gold", "effect-shimmer"].forEach(cls => {
+        cardFrontFace.classList.remove(cls);
+        cardBackFace.classList.remove(cls);
+      });
+      if (effect !== "none") {
+        cardFrontFace.classList.add("effect-" + effect);
+        cardBackFace.classList.add("effect-" + effect);
+      }
+    }
+
+
+    if (cardEffectSelect) {
+      if (cardEffectSelect) cardEffectSelect.onchange = () => {
+        safeSetItem(STORAGE_KEY_CARD_EFFECT, cardEffectSelect.value);
+        applyCardEffect();
+      };
+    }
+
+
+    if (previewDefaultSpinSelect) {
+      if (previewDefaultSpinSelect) previewDefaultSpinSelect.onchange = () => {
+        safeSetItem(STORAGE_KEY_PREVIEW_SPIN, previewDefaultSpinSelect.value);
+      };
+    }
+
+
+    function handle3DTilt(xRatio, yRatio) {
+      if (card3dInner.classList.contains("spinning") || card3dInner.classList.contains("flipped")) return;
+      const tiltX = (yRatio - 0.5) * -28;
+      const tiltY = (xRatio - 0.5) * 28;
+      card3dInner.style.transform = `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.03, 1.03, 1.03)`;
+
+
+      const pX = (xRatio * 100) + "%";
+      const pY = (yRatio * 100) + "%";
+      document.documentElement.style.setProperty("--pointer-x", pX);
+      document.documentElement.style.setProperty("--pointer-y", pY);
+    }
+
+
+    function reset3DTilt() {
+      if (card3dInner.classList.contains("spinning") || card3dInner.classList.contains("flipped")) return;
+      card3dInner.style.transform = "perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)";
+      document.documentElement.style.setProperty("--pointer-x", "50%");
+      document.documentElement.style.setProperty("--pointer-y", "50%");
+    }
+
+
+    card3dWrap.addEventListener("mousemove", (e) => {
+      const rect = card3dWrap.getBoundingClientRect();
+      const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      handle3DTilt(x, y);
+    });
+
+
+    card3dWrap.addEventListener("mouseleave", reset3DTilt);
+
+
+    card3dWrap.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = card3dWrap.getBoundingClientRect();
+        const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+        const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+        handle3DTilt(x, y);
+      }
+    }, { passive: true });
+
+
+    card3dWrap.addEventListener("touchend", reset3DTilt);
+
+
+    let currentModalCard = null;
+    let modalViewingMode = "owned"; // 'owned' or 'lineup'
+    const toggleLineupBtn = document.getElementById("toggleLineupBtn");
+    const lineupBadge = document.getElementById("lineupBadge");
+
+    function updateModalCardImage() {
+      if (!currentModalCard) return;
+      const card = currentModalCard;
+
+      let frontSrc = "";
+      let backSrc = "";
+
+      if (modalViewingMode === "lineup") {
+        // ラインナップ見本画像を表示
+        frontSrc = card.unownedImg || card.logo || makeDummyCardDataUrl(card);
+        backSrc = card.unownedBackImg || card.backImg || "";
+        if (toggleLineupBtn) {
+          toggleLineupBtn.innerHTML = "📷 写真に戻す";
+          toggleLineupBtn.style.background = "#3b0764";
+          toggleLineupBtn.style.borderColor = "#c084fc";
+          toggleLineupBtn.style.color = "#e9d5ff";
+        }
+        if (lineupBadge) lineupBadge.style.display = "inline-block";
+      } else {
+        // 通常の所持写真（またはデフォルト画像）を表示
+        frontSrc = getCardImage(card);
+        backSrc = (card.isOwned && card.ownedBackImg) ? card.ownedBackImg : (card.backImg || "");
+        if (toggleLineupBtn) {
+          toggleLineupBtn.innerHTML = "🖼️ 見本画像";
+          toggleLineupBtn.style.background = "#0f172a";
+          toggleLineupBtn.style.borderColor = "#38bdf8";
+          toggleLineupBtn.style.color = "#38bdf8";
+        }
+        if (lineupBadge) lineupBadge.style.display = "none";
+      }
+
+      modalImg.src = frontSrc;
+      const isLogo = (frontSrc === card.logo) || 
+                     (card.series && (frontSrc === loadedSeriesLogos[card.series] || frontSrc === DEFAULT_SERIES_LOGOS[card.series]));
+      if (isLogo) {
+        cardFrontFace.classList.add("front-has-placeholder-logo");
+      } else {
+        cardFrontFace.classList.remove("front-has-placeholder-logo");
+      }
+
+      if (backSrc) {
+        modalBackImg.src = backSrc;
+        modalBackImg.style.display = "block";
+        autoBackContent.style.display = "none";
+      } else {
+        modalBackImg.style.display = "none";
+        autoBackContent.style.display = "flex";
+        applySeriesBackDesign(card);
+      }
+    }
+
+    function openModal(card) {
+      currentModalCard = card;
+      modalViewingMode = "owned";
+
+      // ラインナップ見本画像（G列: unownedImg）が存在する場合のみボタンを表示
+      const hasLineup = !!(card.unownedImg);
+      const hasOwnedPhoto = !!(card.ownedImg);
+      if (toggleLineupBtn) {
+        // 所持写真とラインナップ見本画像が両方ある場合、または所持カードで見本もある場合に切り替え可能
+        if (hasLineup && (hasOwnedPhoto || card.isOwned)) {
+          toggleLineupBtn.style.display = "inline-flex";
+        } else {
+          toggleLineupBtn.style.display = "none";
+        }
+      }
+
+      updateModalCardImage();
+
+      applyCardEffect();
+      reset3DTilt();
+
+      const defSpin = safeGetItem(STORAGE_KEY_PREVIEW_SPIN) || "stop";
+      if (previewDefaultSpinSelect) previewDefaultSpinSelect.value = defSpin;
+      card3dInner.classList.remove("flipped", "spinning");
+      if (defSpin === "spin") {
+        card3dInner.classList.add("spinning");
+        spinBtn.classList.add("active");
+      } else {
+        spinBtn.classList.remove("active");
+      }
+
+      document.getElementById("modalCardNum").textContent = "#" + card.number;
+      document.getElementById("modalCardName").textContent = card.name;
+      document.getElementById("modalCardRarity").textContent = card.rarity || "-";
+      document.getElementById("modalCardSeries").textContent = card.series;
+
+      const statusEl = document.getElementById("modalCardStatus");
+      if (card.isOwned) {
+        statusEl.textContent = "✔ 所持";
+        statusEl.className = "modal-card-status owned";
+      } else {
+        statusEl.textContent = "✖ 未所持";
+        statusEl.className = "modal-card-status unowned";
+      }
+
+      modal.classList.add("open");
+    }
+
+    if (toggleLineupBtn) {
+      toggleLineupBtn.onclick = (e) => {
+        e.stopPropagation();
+        modalViewingMode = (modalViewingMode === "owned") ? "lineup" : "owned";
+        updateModalCardImage();
+      };
+    }
+
+
+    if (card3dWrap) card3dWrap.onclick = (e) => {
+      if (card3dInner.classList.contains("spinning")) {
+        card3dInner.classList.remove("spinning");
+        spinBtn.classList.remove("active");
+      }
+      reset3DTilt();
+      card3dInner.classList.toggle("flipped");
+    };
+
+
+    if (spinBtn) spinBtn.onclick = (e) => {
+      e.stopPropagation();
+      reset3DTilt();
+      const active = card3dInner.classList.toggle("spinning");
+      spinBtn.classList.toggle("active", active);
+      if (active) card3dInner.classList.remove("flipped");
+    };
+
+
+    if (modalCloseBtn) modalCloseBtn.onclick = () => {
+      modal.classList.remove("open");
+      card3dInner.classList.remove("flipped", "spinning");
+      spinBtn.classList.remove("active");
+      reset3DTilt();
+    };
+    if (modal) modal.onclick = (e) => { 
+      if (e.target === modal) {
+        modal.classList.remove("open");
+        card3dInner.classList.remove("flipped", "spinning");
+        spinBtn.classList.remove("active");
+        reset3DTilt();
+      }
+    };
+
+
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    if (prevBtn) {
+      prevBtn.onclick = () => {
+        if (currentPage > 1) { currentPage--; renderGridView(); }
+      };
+    }
+    if (nextBtn) {
+      nextBtn.onclick = () => {
+        let pageSize = 4;
+        if (viewMode === "3x3") pageSize = 9;
+        else if (viewMode === "2x3") pageSize = 6;
+        else pageSize = 4;
+
+
+        const totalPages = Math.ceil(currentCards.length / pageSize);
+        if (currentPage < totalPages) { currentPage++; renderGridView(); }
+      };
+    }
+
+
+    let touchStartX = 0;
+    if (binderArea) {
+      binderArea.addEventListener("touchstart", e => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      binderArea.addEventListener("touchend", e => {
+        const diff = e.changedTouches[0].screenX - touchStartX;
+        if (diff > 45 && prevBtn) prevBtn.click();
+        else if (diff < -45 && nextBtn) nextBtn.click();
+      }, { passive: true });
+    }
+
+
+    if (seriesSelect) seriesSelect.onchange = onSeriesChange;
+    const toggleSearchBtn = document.getElementById("toggleSearchBtn");
+    // searchContainer
+    const clearSearchBtn = document.getElementById("clearSearchBtn");
+    const closeSearchBtn = document.getElementById("closeSearchBtn");
+
+    function updateClearSearchBtn() {
+      if (!clearSearchBtn || !searchInput) return;
+      clearSearchBtn.style.display = (searchInput.value.trim().length > 0) ? "flex" : "none";
+    }
+
+    if (toggleSearchBtn) {
+      toggleSearchBtn.onclick = () => {
+        if (!searchContainer) return;
+        const isOpen = searchContainer.classList.toggle("open");
+        if (isOpen) {
+          if (searchInput) searchInput.focus();
+        } else {
+          if (searchInput) searchInput.value = "";
+          updateClearSearchBtn();
+          onSeriesChange();
+        }
+      };
+    }
+
+    if (searchInput) {
+      searchInput.oninput = () => {
+        updateClearSearchBtn();
+        onSeriesChange();
+      };
+    }
+
+    if (clearSearchBtn) {
+      clearSearchBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (!searchInput) return;
+        searchInput.value = "";
+        updateClearSearchBtn();
+        searchInput.focus();
+        onSeriesChange();
+      };
+    }
+
+    if (closeSearchBtn) {
+      closeSearchBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (!searchContainer || !searchInput) return;
+        searchContainer.classList.remove("open");
+        searchInput.value = "";
+        updateClearSearchBtn();
+        onSeriesChange();
+      };
+    }
+
+
+    if (localCsvInput) {
+      localCsvInput.onchange = (e) => {
+        const fileList = Array.from(e.target.files);
+        const file = fileList.shift();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          processCsvText(event.target.result);
+          closeSettings();
+        };
+        reader.readAsText(file, "UTF-8");
+      };
+    }
+
+
+    if (saveSettingBtn) {
+      saveSettingBtn.onclick = async () => {
+        const parsedId = parseSpreadsheetId(settingIdInput.value);
+        if (!parsedId) {
+          alert("有効なIDまたはURLを入力してください");
+          return;
+        }
+        safeSetItem(STORAGE_KEY_ID, parsedId);
+        closeSettings();
+        await loadData();
+      };
+    }
+
+    if (resetSettingBtn) {
+      resetSettingBtn.onclick = async () => {
+        safeRemoveItem(STORAGE_KEY_ID);
+        if (settingIdInput) settingIdInput.value = DEFAULT_SPREADSHEET_ID;
+        closeSettings();
+        await loadData();
+      };
+    }
+
+    // クイックID変更モーダル操作
+    const quickIdBtn = document.getElementById("quickIdBtn");
+    const quickIdModal = document.getElementById("quickIdModal");
+    const closeQuickIdBtn = document.getElementById("closeQuickIdBtn");
+    const cancelQuickIdBtn = document.getElementById("cancelQuickIdBtn");
+    const quickIdInput = document.getElementById("quickIdInput");
+    const quickIdSaveBtn = document.getElementById("quickIdSaveBtn");
+    const quickApplyLatestBtn = document.getElementById("quickApplyLatestBtn");
+    const clearQuickIdBtn = document.getElementById("clearQuickIdBtn");
+    const quickIdCurrentLabel = document.getElementById("quickIdCurrentLabel");
+
+    function openQuickIdModal() {
+      if (!quickIdModal) return;
+      const current = getCurrentSpreadsheetId();
+      if (quickIdInput) quickIdInput.value = current;
+      if (quickIdCurrentLabel) quickIdCurrentLabel.textContent = "現在の設定ID: " + current;
+      quickIdModal.style.display = "flex";
+      if (quickIdInput) quickIdInput.focus();
+    }
+
+    function closeQuickIdModal() {
+      if (!quickIdModal) return;
+      quickIdModal.style.display = "none";
+    }
+
+    if (quickIdBtn) quickIdBtn.onclick = openQuickIdModal;
+    if (closeQuickIdBtn) closeQuickIdBtn.onclick = closeQuickIdModal;
+    if (cancelQuickIdBtn) cancelQuickIdBtn.onclick = closeQuickIdModal;
+    if (clearQuickIdBtn) {
+      if (clearQuickIdBtn) clearQuickIdBtn.onclick = () => {
+        if (quickIdInput) { quickIdInput.value = ""; quickIdInput.focus(); }
+      };
+    }
+    if (quickApplyLatestBtn) {
+      if (quickApplyLatestBtn) quickApplyLatestBtn.onclick = () => {
+        if (quickIdInput) quickIdInput.value = DEFAULT_SPREADSHEET_ID;
+      };
+    }
+    if (quickIdSaveBtn) {
+      if (quickIdSaveBtn) quickIdSaveBtn.onclick = async () => {
+        const val = (quickIdInput && quickIdInput.value) || "";
+        const parsed = parseSpreadsheetId(val);
+        if (parsed) {
+          safeSetItem(STORAGE_KEY_ID, parsed);
+          closeQuickIdModal();
+          await loadData();
+        } else {
+          alert("有効なスプレッドシートIDまたはURLを入力してください。");
+        }
+      };
+    }
+
+    // 🔗 リンク共有モーダル操作
+    const shareLinkBtn = document.getElementById("shareLinkBtn");
+    const shareModal = document.getElementById("shareModal");
+    const closeShareModalBtn = document.getElementById("closeShareModalBtn");
+    const cancelShareBtn = document.getElementById("cancelShareBtn");
+    const shareUrlInput = document.getElementById("shareUrlInput");
+    const copyShareUrlBtn = document.getElementById("copyShareUrlBtn");
+    const nativeShareBtn = document.getElementById("nativeShareBtn");
+    const shareCurrentSeriesCheck = document.getElementById("shareCurrentSeriesCheck");
+    const shareSeriesNameLabel = document.getElementById("shareSeriesNameLabel");
+    const localWarningNotice = document.getElementById("localWarningNotice");
+
+    function getBaseShareUrl() {
+      const loc = window.location;
+      // GAS Web App 実行時のURLハンドリング
+      if (loc.href.includes("script.google.com")) {
+        const baseUrl = loc.origin + loc.pathname;
+        return baseUrl + "?page=binder&share=1";
+      }
+      // 通常のWebサーバー / ホスティング環境
+      const baseUrl = loc.origin + loc.pathname;
+      return baseUrl + "?share=1";
+    }
+
+    function updateShareUrlDisplay() {
+      if (!shareUrlInput) return;
+      let url = getBaseShareUrl();
+      const isLocal = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost" || window.location.protocol === "file:";
+      if (localWarningNotice) {
+        localWarningNotice.style.display = isLocal ? "block" : "none";
+      }
+
+      if (shareSeriesNameLabel) {
+        shareSeriesNameLabel.textContent = currentSeries || "未選択";
+      }
+
+      if (shareCurrentSeriesCheck && shareCurrentSeriesCheck.checked && currentSeries) {
+        url += "&series=" + encodeURIComponent(currentSeries);
+      }
+      shareUrlInput.value = url;
+    }
+
+    function openShareModal() {
+      if (!shareModal) return;
+      updateShareUrlDisplay();
+      shareModal.style.display = "flex";
+
+      // モバイル端末でWeb Share APIが利用可能なら「アプリで送る」ボタンを表示
+      if (navigator.share && nativeShareBtn) {
+        nativeShareBtn.style.display = "flex";
+      }
+    }
+
+    function closeShareModal() {
+      if (!shareModal) return;
+      shareModal.style.display = "none";
+    }
+
+    if (shareLinkBtn) shareLinkBtn.onclick = openShareModal;
+    if (closeShareModalBtn) closeShareModalBtn.onclick = closeShareModal;
+    if (cancelShareBtn) cancelShareBtn.onclick = closeShareModal;
+    if (shareCurrentSeriesCheck) shareCurrentSeriesCheck.onchange = updateShareUrlDisplay;
+
+    if (copyShareUrlBtn) {
+      if (copyShareUrlBtn) copyShareUrlBtn.onclick = async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareUrlInput.value);
+          } else {
+            shareUrlInput.select();
+            document.execCommand("copy");
+          }
+          copyShareUrlBtn.textContent = "✔ コピー済";
+          setTimeout(() => { copyShareUrlBtn.textContent = "📋 コピー"; }, 2000);
+        } catch (e) {
+          alert("コピーに失敗しました。URLを選択して手動でコピーしてください。");
+        }
+      };
+    }
+
+    if (nativeShareBtn) {
+      if (nativeShareBtn) nativeShareBtn.onclick = async () => {
+        try {
+          await navigator.share({
+            title: "デジタルカードバインダー - " + (currentSeries || "コレクション"),
+            text: "デジタルカードバインダーでコレクションをチェック！",
+            url: shareUrlInput.value
+          });
+        } catch (err) {}
+      };
+    }
+
+    // 閲覧専用（共有）モードのUI適用：他人に設定ボタン等を見せず、下段のシリーズ選択とバインダー表示方法だけに限定
+    if (isViewerMode) {
+      document.body.classList.add("viewer-mode");
+      if (appEl) appEl.classList.add("viewer-mode");
+
+      const row1 = document.querySelector(".header-row-1");
+      if (row1) row1.style.display = "none";
+      const sContainer = document.getElementById("searchContainer");
+      if (sContainer) sContainer.style.display = "none";
+
+      const qBtn = document.getElementById("quickIdBtn");
+      if (qBtn) qBtn.style.display = "none";
+      const setBtn = document.getElementById("openSettingsBtn");
+      if (setBtn) setBtn.style.display = "none";
+      const shareBtn = document.getElementById("shareLinkBtn");
+      if (shareBtn) shareBtn.style.display = "none";
+      const refBtn = document.getElementById("refreshDataBtn");
+      if (refBtn) refBtn.style.display = "none";
+      const searchBtn = document.getElementById("toggleSearchBtn");
+      if (searchBtn) searchBtn.style.display = "none";
+      const vBadge = document.getElementById("viewerBadge");
+      if (vBadge) vBadge.style.display = "none";
+    }
+
+    // 🔄 最新データ再読み込みボタン
+    const refreshBtn = document.getElementById("refreshDataBtn");
+    if (refreshBtn) {
+      if (refreshBtn) refreshBtn.onclick = async () => {
+        refreshBtn.classList.add("spin");
+        await loadData();
+        setTimeout(() => { refreshBtn.classList.remove("spin"); }, 600);
+      };
+    }
+
+    // 初回データ読み込み
+    loadData();
+  </script>
+</body>
+</html>
