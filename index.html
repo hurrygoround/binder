@@ -2,8 +2,14 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <script>
+    // 最優先エラー捕捉（万一エラーが出たら即座に画面に通知）
+    window.onerror = function(msg, url, line, col, err) {
+      alert("⚠️ バインダー実行時エラー検知:\n" + msg + "\n行番号: " + line + " 行目" + (err && err.message ? "\n詳細: " + err.message : ""));
+    };
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>デジタルカードバインダー v23</title>
+  <title>デジタルカードバインダー v24</title>
   <style>
     :root {
       --base-rgb: 18, 18, 20;
@@ -267,6 +273,10 @@
   </style>
 </head>
 <body>
+  <!-- サーバー注入データ用コンテナ (構文エラーが絶対に起きない安全構造) -->
+  <script type="application/json" id="serverDataJson">
+<?!= typeof serverData !== "undefined" ? serverData : "[]" ?>
+  </script>
   <!-- 万一のエラー可視化バナー (画面が真っ暗になるのを防止) -->
   <div id="gasErrorNotice" style="display:none; position:fixed; top:10px; left:10px; right:10px; z-index:9999999; background:#dc2626; color:#fff; padding:12px 14px; border-radius:8px; font-size:12px; font-family:sans-serif; box-shadow:0 8px 24px rgba(0,0,0,0.7); line-height:1.5;">
     <div style="font-weight:bold; font-size:13px; margin-bottom:4px;">⚠️ システム警告 / エラー情報</div>
@@ -279,7 +289,7 @@
       <div class="header-row-1">
         <div style="display:flex; align-items:center; flex:1 1 auto; min-width:0; gap:6px;">
           <div id="statsText">所持: -- / --</div>
-          <span class="version-tag" id="appVersionTag">v23</span>
+          <span class="version-tag" id="appVersionTag">v24</span>
           <span id="viewerBadge" class="badge-viewer" style="display:none;">👁️ 閲覧専用</span>
         </div>
         <div class="header-icons">
@@ -548,14 +558,6 @@
 
 
   <script>
-    // ★サーバーサイドから直接注入されたスプレッドシートデータ（通信不要・0秒描画）
-    let serverInjectedRows = null;
-    try {
-      serverInjectedRows = <?!= serverData ?>;
-    } catch(e) {
-      serverInjectedRows = null;
-    }
-
     // ★グローバルエラー捕捉（何が起きても画面で原因が100%わかるように通知）
     window.onerror = function(msg, url, line, col, err) {
       console.error("Global JS Error:", msg, "at line", line);
@@ -1714,24 +1716,39 @@ SDガンダム ジージェネレーション エターナル スナック 01,,G
 
 
     async function loadData() {
-      updateSettingsDisplay();
-      applyUiStyle();
-      if (viewModeSelect) viewModeSelect.value = viewMode;
+      try {
+        updateSettingsDisplay();
+        applyUiStyle();
+        if (viewModeSelect) viewModeSelect.value = viewMode;
 
-      // 1. 【最速】サーバーから直接受け取った最新スプレッドシートデータで即時描画
-      if (serverInjectedRows && Array.isArray(serverInjectedRows) && serverInjectedRows.length > 0) {
-        if (processParsedRows(serverInjectedRows)) {
-          return;
-        }
-      }
-
-      // 2. 【最優先・0秒即時描画】内蔵マスターデータ（全14シリーズ・485枚）でまず確実に画面を描画！
-      if (typeof EMBEDDED_CSV_FALLBACK !== "undefined") {
+        // 1. サーバーから安全に注入されたデータがあれば最優先で展開
+        let serverRows = null;
         try {
-          processCsvText(EMBEDDED_CSV_FALLBACK);
-        } catch (e) {
-          console.warn("Initial instant render error:", e);
+          const jsonEl = document.getElementById("serverDataJson");
+          if (jsonEl && jsonEl.textContent) {
+            const raw = jsonEl.textContent.trim();
+            if (raw && raw !== "[]" && !raw.startsWith("<?")) {
+              serverRows = JSON.parse(raw);
+            }
+          }
+        } catch (je) {
+          console.warn("Server JSON parse error:", je);
         }
+
+        if (serverRows && Array.isArray(serverRows) && serverRows.length > 0) {
+          if (processParsedRows(serverRows)) {
+            console.log("Rendered from server injected rows successfully!");
+            return;
+          }
+        }
+
+        // 2. 内蔵マスターデータ（全14シリーズ・485枚）で即時描画
+        if (typeof EMBEDDED_CSV_FALLBACK !== "undefined") {
+          processCsvText(EMBEDDED_CSV_FALLBACK);
+          console.log("Rendered from EMBEDDED_CSV_FALLBACK successfully!");
+        }
+      } catch (err) {
+        alert("loadData 実行時エラー: " + err.message + "\n" + err.stack);
       }
 
       // バックグラウンドで最新データを同期（GAS側に関数がなくても100%安全にフォールバック）
